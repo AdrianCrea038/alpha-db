@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -15,7 +16,7 @@
             <div class="header-top">
                 <div class="logo-container">
                     <h1>⚡ CONTROL T</h1>
-                    <span class="version">v3.2</span>
+                    <span class="version">v5.0</span>
                 </div>
                 <div class="header-actions">
                     <button id="exportarDBBtn" class="btn-secondary">
@@ -42,8 +43,8 @@
                         <input type="date" id="fecha" required>
                     </div>
                     <div class="form-group">
-                        <label for="nombre">👤 Nombre</label>
-                        <input type="text" id="nombre" required placeholder="Nombre del deporte/estilo">
+                        <label for="estilo">🎯 Estilo/Deporte</label>
+                        <input type="text" id="estilo" required placeholder="Nombre del estilo/deporte">
                     </div>
                 </div>
 
@@ -52,6 +53,33 @@
                         <label for="tela">🧵 Tela</label>
                         <input type="text" id="tela" required placeholder="Tipo de tela">
                     </div>
+                    <div class="form-group">
+                        <label for="color">🎨 Color</label>
+                        <input type="text" id="color" required placeholder="Nombre del color">
+                    </div>
+                </div>
+
+                <!-- CMYK Campos -->
+                <div class="form-row cmyk-row">
+                    <div class="form-group cmyk-group">
+                        <label for="cyan">🟦 Cyan (C)</label>
+                        <input type="number" id="cyan" step="1" min="0" max="100" placeholder="0-100">
+                    </div>
+                    <div class="form-group cmyk-group">
+                        <label for="magenta">🟪 Magenta (M)</label>
+                        <input type="number" id="magenta" step="1" min="0" max="100" placeholder="0-100">
+                    </div>
+                    <div class="form-group cmyk-group">
+                        <label for="yellow">🟨 Yellow (Y)</label>
+                        <input type="number" id="yellow" step="1" min="0" max="100" placeholder="0-100">
+                    </div>
+                    <div class="form-group cmyk-group">
+                        <label for="black">⬛ Black (K)</label>
+                        <input type="number" id="black" step="1" min="0" max="100" placeholder="0-100">
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="adhesivo">🔗 Adhesivo</label>
                         <input type="text" id="adhesivo" required placeholder="Tipo de adhesivo">
@@ -84,6 +112,12 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Observación (solo aparece cuando fecha es anterior a hoy) -->
+                <div id="observacionContainer" class="observacion-container" style="display: none;">
+                    <label for="observacion">📝 Observación (¿Por qué fecha anterior?)</label>
+                    <textarea id="observacion" rows="2" placeholder="Explica por qué se registra con fecha anterior..."></textarea>
+                </div>
             </form>
         </section>
 
@@ -91,27 +125,32 @@
         <section class="filters-section">
             <div class="filters-header">
                 <h2>🔍 BÚSQUEDA Y FILTROS</h2>
-                <button id="imprimirReportesBtn" class="btn-print">
-                    <span>🖨️</span> REPORTE COMPLETO
-                </button>
+                <div class="report-buttons">
+                    <button id="imprimirReportesBtn" class="btn-print">
+                        <span>🖨️</span> IMPRIMIR
+                    </button>
+                    <button id="exportarExcelBtn" class="btn-excel">
+                        <span>📊</span> EXCEL
+                    </button>
+                </div>
             </div>
             
             <div class="filters-grid">
-                <!-- Calendario Elegante y Compacto -->
-                <div class="calendar-container">
-                    <div class="calendar-header">
-                        <h3>📅 SEMANAS</h3>
-                        <button id="limpiarFiltroBtn" class="btn-clear-filters">✕</button>
+                <!-- Calendario por Meses con Semanas - COMPACTO -->
+                <div class="calendario-mensual">
+                    <div class="calendario-header">
+                        <h3>📅 CALENDARIO DE SEMANAS</h3>
+                        <button id="limpiarFiltroBtn" class="btn-clear-filters">✕ LIMPIAR</button>
                     </div>
-                    <div id="calendarioContainer" class="calendario-compacto">
-                        <!-- Se llena dinámicamente -->
+                    <div id="calendarioMensualContainer" class="meses-grid">
+                        <!-- Se llena dinámicamente con meses y semanas -->
                     </div>
                 </div>
                 
                 <!-- Buscador -->
                 <div class="search-box-container">
                     <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="Buscar por cualquier dato...">
+                        <input type="text" id="searchInput" placeholder="Buscar por estilo, tela, color, CMYK, temperatura...">
                         <button id="clearSearch" class="btn-clear">✕</button>
                     </div>
                 </div>
@@ -133,24 +172,44 @@
                         <tr>
                             <th>SEM</th>
                             <th>FECHA</th>
-                            <th>NOMBRE</th>
+                            <th>ESTILO</th>
                             <th>TELA</th>
+                            <th>COLOR</th>
+                            <th>C</th>
+                            <th>M</th>
+                            <th>Y</th>
+                            <th>K</th>
                             <th>ADHESIVO</th>
-                            <th>T° MONTI</th>
+                            <th>T° M</th>
                             <th>VEL</th>
-                            <th>T° FLAT</th>
-                            <th>T/FLAT</th>
+                            <th>T° F</th>
+                            <th>T/F</th>
                             <th>ACCIONES</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                            <td colspan="10" class="loading">Cargando registros...</td>
+                            <td colspan="15" class="loading">Cargando registros...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </section>
+    </div>
+
+    <!-- Modal para historial de ediciones -->
+    <div id="modalHistorial" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 HISTORIAL DE EDICIONES</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="historialContainer">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal para impresión individual -->
