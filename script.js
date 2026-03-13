@@ -1,5 +1,5 @@
 // CONTROL T - Sistema de Gestión Premium
-// Versión 7.5 - Con validación de fechas corregida y número de plotter
+// Versión 7.5 - Con filtro corregido
 
 // ==================== CONFIGURACIÓN ====================
 const DB_VERSION = '7.5';
@@ -13,6 +13,283 @@ let currentSemana = '';
 let editandoId = null;
 let historialEdiciones = {};
 
+// ==================== FUNCIONES UTILITARIAS (DEFINIR PRIMERO) ====================
+
+function generarIdUnico() {
+    return 'CT-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4).toUpperCase();
+}
+
+function obtenerSemana(fecha) {
+    const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function formatearFecha(fechaStr) {
+    const fecha = new Date(fechaStr);
+    const dia = fecha.getDate().toString().padStart(2, '0');
+    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const anio = fecha.getFullYear();
+    return `${dia}-${mes}-${anio}`;
+}
+
+function mostrarNotificacion(mensaje, tipo = 'success') {
+    const notificacion = document.createElement('div');
+    notificacion.textContent = mensaje;
+    notificacion.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 0.8rem 1.5rem;
+        background: ${tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        border-radius: 0.5rem;
+        z-index: 1000;
+        animation: slideIn 0.3s;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-weight: 500;
+    `;
+    
+    document.body.appendChild(notificacion);
+    
+    setTimeout(() => {
+        notificacion.style.animation = 'slideOut 0.3s';
+        setTimeout(() => document.body.removeChild(notificacion), 300);
+    }, 2500);
+}
+
+// ==================== FILTROS Y UI (DEFINIR ANTES DE USAR) ====================
+
+function filtrarRegistrosArray() {
+    console.log('Filtrando con:', { currentSearch, currentSemana });
+    
+    // Si no hay filtros, devolver todos los registros
+    if (!currentSearch && !currentSemana) {
+        console.log('Sin filtros, devolviendo todos:', registros.length);
+        return registros;
+    }
+    
+    const termino = currentSearch ? currentSearch.toLowerCase().trim() : '';
+    console.log('Término de búsqueda:', termino);
+    
+    // Función auxiliar para convertir valores a string de forma segura
+    const safeToString = (valor) => {
+        if (valor === undefined || valor === null) return '';
+        return valor.toString();
+    };
+    
+    const resultados = registros.filter(reg => {
+        // Primero filtrar por semana si existe
+        if (currentSemana) {
+            const semanaReg = parseInt(reg.semana);
+            const semanaFiltro = parseInt(currentSemana);
+            if (semanaReg !== semanaFiltro) {
+                return false;
+            }
+        }
+        
+        // Si no hay término de búsqueda, solo aplicar filtro de semana
+        if (!termino) {
+            return true;
+        }
+        
+        // Crear un string con TODOS los datos del registro para buscar
+        const datosCompletos = [
+            safeToString(reg.po),
+            safeToString(reg.estilo),
+            safeToString(reg.tela),
+            safeToString(reg.cyan),
+            safeToString(reg.magenta),
+            safeToString(reg.yellow),
+            safeToString(reg.black),
+            safeToString(reg.color1_nombre),
+            safeToString(reg.color1_valor),
+            safeToString(reg.color2_nombre),
+            safeToString(reg.color2_valor),
+            safeToString(reg.color3_nombre),
+            safeToString(reg.color3_valor),
+            safeToString(reg.color4_nombre),
+            safeToString(reg.color4_valor),
+            safeToString(reg.numero_plotter),
+            safeToString(reg.plotter_temp),
+            safeToString(reg.plotter_humedad),
+            safeToString(reg.plotter_perfil),
+            safeToString(reg.adhesivo),
+            safeToString(reg.semana),
+            safeToString(reg.temperatura_monti),
+            safeToString(reg.velocidad_monti),
+            safeToString(reg.temperatura_flat),
+            safeToString(reg.tiempo_flat),
+            safeToString(reg.fecha),
+            safeToString(formatearFecha(reg.fecha)),
+            safeToString(reg.id)
+        ].join(' ').toLowerCase();
+        
+        return datosCompletos.includes(termino);
+    });
+    
+    console.log('Resultados encontrados:', resultados.length);
+    return resultados;
+}
+
+function actualizarUI() {
+    const registrosFiltrados = filtrarRegistrosArray();
+    mostrarTabla(registrosFiltrados);
+    actualizarCalendarioMensual();
+    actualizarEstadisticas();
+}
+
+function actualizarEstadisticas() {
+    const totalRegistros = registros.length;
+    const registrosFiltrados = filtrarRegistrosArray();
+    const filtroBadge = document.getElementById('filtroActivo');
+    const totalSpan = document.getElementById('totalRegistros');
+    
+    totalSpan.innerHTML = `${totalRegistros} registros`;
+    
+    if (currentSemana || currentSearch) {
+        filtroBadge.style.display = 'inline';
+        filtroBadge.innerHTML = `${registrosFiltrados.length} resultados`;
+    } else {
+        filtroBadge.style.display = 'none';
+    }
+}
+
+function mostrarTabla(registrosMostrar) {
+    const tbody = document.getElementById('tableBody');
+    
+    if (registrosMostrar.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="20" class="loading">📭 Sin resultados</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = registrosMostrar.map(reg => {
+        const tieneHistorial = historialEdiciones[reg.id] && historialEdiciones[reg.id].length > 0;
+        const rowClass = tieneHistorial ? 'has-history' : '';
+        
+        // Formatear datos de plotter
+        const plotterText = reg.plotter_temp ? 
+            `#${reg.numero_plotter || 0} ${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
+            '-';
+        
+        return `
+            <tr class="${rowClass}">
+                <td><span class="po-badge">${reg.po || '-'}</span></td>
+                <td>${reg.semana}</td>
+                <td>${formatearFecha(reg.fecha)}</td>
+                <td>${reg.estilo}</td>
+                <td>${reg.tela}</td>
+                <td style="color: #60a5fa; font-weight: 600;">${reg.cyan.toFixed(1)}</td>
+                <td style="color: #f472b6; font-weight: 600;">${reg.magenta.toFixed(1)}</td>
+                <td style="color: #fbbf24; font-weight: 600;">${reg.yellow.toFixed(1)}</td>
+                <td style="color: #9ca3af; font-weight: 600;">${reg.black.toFixed(1)}</td>
+                <td style="color: #9c27b0;">${reg.color1_nombre ? `${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #ff9800;">${reg.color2_nombre ? `${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #4caf50;">${reg.color3_nombre ? `${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #f44336;">${reg.color4_nombre ? `${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}` : '-'}</td>
+                <td><span style="background: #9c27b0; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${plotterText}</span></td>
+                <td>${reg.adhesivo}</td>
+                <td>${reg.temperatura_monti.toFixed(1)}°</td>
+                <td>${reg.velocidad_monti.toFixed(1)}</td>
+                <td>${reg.temperatura_flat.toFixed(1)}°</td>
+                <td>${reg.tiempo_flat.toFixed(1)}s</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-icon edit" onclick="editarRegistro('${reg.id}')" title="Editar">✏️</button>
+                        <button class="btn-icon history" onclick="verHistorial('${reg.id}')" title="Historial">📋</button>
+                        <button class="btn-icon print" onclick="imprimirRegistroIndividual('${reg.id}')" title="Imprimir">🖨️</button>
+                        <button class="btn-icon delete" onclick="eliminarRegistro('${reg.id}')" title="Eliminar">🗑️</button>
+                    </div>
+                    ${reg.observacion ? `<small style="color:#ffd93d; display:block; margin-top:0.3rem;">📝 ${reg.observacion}</small>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ==================== CALENDARIO MENSUAL COMPACTO ====================
+
+function actualizarCalendarioMensual() {
+    const container = document.getElementById('calendarioMensualContainer');
+    
+    if (registros.length === 0) {
+        container.innerHTML = '<p class="no-data">📅 Sin semanas</p>';
+        return;
+    }
+    
+    // Agrupar por mes
+    const mesesMap = new Map();
+    
+    registros.forEach(reg => {
+        const fecha = new Date(reg.fecha);
+        const año = fecha.getFullYear();
+        const mes = fecha.getMonth();
+        const mesKey = `${año}-${mes}`;
+        const nombreMes = fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
+        
+        if (!mesesMap.has(mesKey)) {
+            mesesMap.set(mesKey, {
+                nombre: nombreMes,
+                año: año,
+                mes: mes,
+                semanas: new Set()
+            });
+        }
+        
+        mesesMap.get(mesKey).semanas.add(reg.semana);
+    });
+    
+    // Convertir a array y ordenar (más reciente primero)
+    const mesesArray = Array.from(mesesMap.entries())
+        .sort((a, b) => b[0].localeCompare(a[0]));
+    
+    // Agrupar de 3 en 3 meses
+    let html = '';
+    for (let i = 0; i < mesesArray.length; i += 3) {
+        const grupoMeses = mesesArray.slice(i, i + 3);
+        
+        grupoMeses.forEach(([key, mes]) => {
+            const semanasArray = Array.from(mes.semanas).sort((a, b) => a - b);
+            
+            html += `
+                <div class="mes-bloque">
+                    <div class="mes-titulo">
+                        <span>${mes.nombre}</span>
+                        <span>${semanasArray.length}</span>
+                    </div>
+                    <div class="semanas-mes">
+                        ${semanasArray.map(semana => {
+                            const isActive = currentSemana == semana;
+                            return `
+                                <span class="semana-mes-chip ${isActive ? 'active' : ''}" 
+                                      onclick="filtrarPorSemana('${semana}')">
+                                    ${semana}
+                                </span>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    container.innerHTML = html;
+}
+
+window.filtrarPorSemana = (semana) => {
+    if (currentSemana == semana) {
+        currentSemana = '';
+        mostrarNotificacion('📅 Filtro de semana eliminado', 'info');
+    } else {
+        currentSemana = semana;
+        mostrarNotificacion(`📅 Semana ${semana} seleccionada`, 'success');
+    }
+    actualizarUI();
+    actualizarEstadisticas();
+};
+
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
     const hoy = new Date().toISOString().split('T')[0];
@@ -23,6 +300,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Toggle para colores extras
     document.getElementById('toggleExtrasBtn').addEventListener('click', toggleExtras);
+    
+    // Evento de búsqueda
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        currentSearch = e.target.value;
+        console.log('Búsqueda actualizada:', currentSearch);
+        actualizarUI();
+        actualizarEstadisticas();
+    });
+    
+    document.getElementById('clearSearch').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        currentSearch = '';
+        actualizarUI();
+        actualizarEstadisticas();
+    });
+    
+    document.getElementById('limpiarFiltroBtn').addEventListener('click', () => {
+        currentSearch = '';
+        currentSemana = '';
+        document.getElementById('searchInput').value = '';
+        actualizarUI();
+        actualizarEstadisticas();
+        mostrarNotificacion('🧹 Filtros eliminados', 'info');
+    });
     
     cargarRegistrosLocal();
     configurarEventos();
@@ -67,28 +368,6 @@ function verificarFechaObservacion() {
 function configurarEventos() {
     document.getElementById('registroForm').addEventListener('submit', guardarRegistro);
     document.getElementById('cancelEditBtn').addEventListener('click', cancelarEdicion);
-    
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        currentSearch = e.target.value;
-        actualizarUI();
-        actualizarEstadisticas();
-    });
-    
-    document.getElementById('clearSearch').addEventListener('click', () => {
-        document.getElementById('searchInput').value = '';
-        currentSearch = '';
-        actualizarUI();
-        actualizarEstadisticas();
-    });
-    
-    document.getElementById('limpiarFiltroBtn').addEventListener('click', () => {
-        currentSearch = '';
-        currentSemana = '';
-        document.getElementById('searchInput').value = '';
-        actualizarUI();
-        actualizarEstadisticas();
-        mostrarNotificacion('🧹 Filtros eliminados', 'info');
-    });
     
     document.getElementById('exportarDBBtn').addEventListener('click', exportarBaseDatos);
     document.getElementById('importarDB').addEventListener('change', importarBaseDatos);
@@ -720,231 +999,6 @@ function importarBaseDatos(event) {
     event.target.value = '';
 }
 
-// ==================== CALENDARIO MENSUAL COMPACTO ====================
-
-function actualizarCalendarioMensual() {
-    const container = document.getElementById('calendarioMensualContainer');
-    
-    if (registros.length === 0) {
-        container.innerHTML = '<p class="no-data">📅 Sin semanas</p>';
-        return;
-    }
-    
-    // Agrupar por mes
-    const mesesMap = new Map();
-    
-    registros.forEach(reg => {
-        const fecha = new Date(reg.fecha);
-        const año = fecha.getFullYear();
-        const mes = fecha.getMonth();
-        const mesKey = `${año}-${mes}`;
-        const nombreMes = fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
-        
-        if (!mesesMap.has(mesKey)) {
-            mesesMap.set(mesKey, {
-                nombre: nombreMes,
-                año: año,
-                mes: mes,
-                semanas: new Set()
-            });
-        }
-        
-        mesesMap.get(mesKey).semanas.add(reg.semana);
-    });
-    
-    // Convertir a array y ordenar (más reciente primero)
-    const mesesArray = Array.from(mesesMap.entries())
-        .sort((a, b) => b[0].localeCompare(a[0]));
-    
-    // Agrupar de 3 en 3 meses
-    let html = '';
-    for (let i = 0; i < mesesArray.length; i += 3) {
-        const grupoMeses = mesesArray.slice(i, i + 3);
-        
-        grupoMeses.forEach(([key, mes]) => {
-            const semanasArray = Array.from(mes.semanas).sort((a, b) => a - b);
-            
-            html += `
-                <div class="mes-bloque">
-                    <div class="mes-titulo">
-                        <span>${mes.nombre}</span>
-                        <span>${semanasArray.length}</span>
-                    </div>
-                    <div class="semanas-mes">
-                        ${semanasArray.map(semana => {
-                            const isActive = currentSemana == semana;
-                            return `
-                                <span class="semana-mes-chip ${isActive ? 'active' : ''}" 
-                                      onclick="filtrarPorSemana('${semana}')">
-                                    ${semana}
-                                </span>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        });
-    }
-    
-    container.innerHTML = html;
-}
-
-window.filtrarPorSemana = (semana) => {
-    if (currentSemana == semana) {
-        currentSemana = '';
-        mostrarNotificacion('📅 Filtro de semana eliminado', 'info');
-    } else {
-        currentSemana = semana;
-        mostrarNotificacion(`📅 Semana ${semana} seleccionada`, 'success');
-    }
-    actualizarUI();
-    actualizarEstadisticas();
-};
-
-// ==================== FILTROS Y UI ====================
-
-function filtrarRegistrosArray() {
-    if (!currentSearch && !currentSemana) return registros;
-    
-    const termino = currentSearch.toLowerCase().trim();
-    
-    return registros.filter(reg => {
-        // Si hay filtro de semana, aplicarlo primero
-        if (currentSemana && reg.semana != currentSemana) {
-            return false;
-        }
-        
-        // Si no hay término de búsqueda, solo aplicar filtro de semana
-        if (!termino) return true;
-        
-        // Buscar en TODOS los campos
-        return (
-            // PO
-            (reg.po && reg.po.toLowerCase().includes(termino)) ||
-            
-            // Texto
-            reg.estilo.toLowerCase().includes(termino) ||
-            reg.tela.toLowerCase().includes(termino) ||
-            
-            // CMYK (como string)
-            reg.cyan.toString().includes(termino) ||
-            reg.magenta.toString().includes(termino) ||
-            reg.yellow.toString().includes(termino) ||
-            reg.black.toString().includes(termino) ||
-            
-            // Colores extras (nombre y valor)
-            (reg.color1_nombre && reg.color1_nombre.toLowerCase().includes(termino)) ||
-            reg.color1_valor.toString().includes(termino) ||
-            (reg.color2_nombre && reg.color2_nombre.toLowerCase().includes(termino)) ||
-            reg.color2_valor.toString().includes(termino) ||
-            (reg.color3_nombre && reg.color3_nombre.toLowerCase().includes(termino)) ||
-            reg.color3_valor.toString().includes(termino) ||
-            (reg.color4_nombre && reg.color4_nombre.toLowerCase().includes(termino)) ||
-            reg.color4_valor.toString().includes(termino) ||
-            
-            // Plotter
-            reg.numero_plotter.toString().includes(termino) ||
-            reg.plotter_temp.toString().includes(termino) ||
-            reg.plotter_humedad.toString().includes(termino) ||
-            (reg.plotter_perfil && reg.plotter_perfil.toLowerCase().includes(termino)) ||
-            
-            // Adhesivo
-            reg.adhesivo.toLowerCase().includes(termino) ||
-            
-            // Semana
-            reg.semana.toString().includes(termino) ||
-            
-            // Temperaturas y tiempos
-            reg.temperatura_monti.toString().includes(termino) ||
-            reg.velocidad_monti.toString().includes(termino) ||
-            reg.temperatura_flat.toString().includes(termino) ||
-            reg.tiempo_flat.toString().includes(termino) ||
-            
-            // Fecha en diferentes formatos
-            reg.fecha.includes(termino) ||
-            formatearFecha(reg.fecha).includes(termino) ||
-            
-            // ID
-            reg.id.toLowerCase().includes(termino)
-        );
-    });
-}
-
-function actualizarUI() {
-    const registrosFiltrados = filtrarRegistrosArray();
-    mostrarTabla(registrosFiltrados);
-    actualizarCalendarioMensual();
-    actualizarEstadisticas();
-}
-
-function actualizarEstadisticas() {
-    const totalRegistros = registros.length;
-    const registrosFiltrados = filtrarRegistrosArray();
-    const filtroBadge = document.getElementById('filtroActivo');
-    const totalSpan = document.getElementById('totalRegistros');
-    
-    totalSpan.innerHTML = `${totalRegistros} registros`;
-    
-    if (currentSemana || currentSearch) {
-        filtroBadge.style.display = 'inline';
-        filtroBadge.innerHTML = `${registrosFiltrados.length} resultados`;
-    } else {
-        filtroBadge.style.display = 'none';
-    }
-}
-
-function mostrarTabla(registrosMostrar) {
-    const tbody = document.getElementById('tableBody');
-    
-    if (registrosMostrar.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="20" class="loading">📭 Sin resultados</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = registrosMostrar.map(reg => {
-        const tieneHistorial = historialEdiciones[reg.id] && historialEdiciones[reg.id].length > 0;
-        const rowClass = tieneHistorial ? 'has-history' : '';
-        
-        // Formatear datos de plotter
-        const plotterText = reg.plotter_temp ? 
-            `#${reg.numero_plotter || 0} ${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
-            '-';
-        
-        return `
-            <tr class="${rowClass}">
-                <td><span class="po-badge">${reg.po || '-'}</span></td>
-                <td>${reg.semana}</td>
-                <td>${formatearFecha(reg.fecha)}</td>
-                <td>${reg.estilo}</td>
-                <td>${reg.tela}</td>
-                <td style="color: #60a5fa; font-weight: 600;">${reg.cyan.toFixed(1)}</td>
-                <td style="color: #f472b6; font-weight: 600;">${reg.magenta.toFixed(1)}</td>
-                <td style="color: #fbbf24; font-weight: 600;">${reg.yellow.toFixed(1)}</td>
-                <td style="color: #9ca3af; font-weight: 600;">${reg.black.toFixed(1)}</td>
-                <td style="color: #9c27b0;">${reg.color1_nombre ? `${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #ff9800;">${reg.color2_nombre ? `${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #4caf50;">${reg.color3_nombre ? `${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #f44336;">${reg.color4_nombre ? `${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}` : '-'}</td>
-                <td><span style="background: #9c27b0; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${plotterText}</span></td>
-                <td>${reg.adhesivo}</td>
-                <td>${reg.temperatura_monti.toFixed(1)}°</td>
-                <td>${reg.velocidad_monti.toFixed(1)}</td>
-                <td>${reg.temperatura_flat.toFixed(1)}°</td>
-                <td>${reg.tiempo_flat.toFixed(1)}s</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-icon edit" onclick="editarRegistro('${reg.id}')" title="Editar">✏️</button>
-                        <button class="btn-icon history" onclick="verHistorial('${reg.id}')" title="Historial">📋</button>
-                        <button class="btn-icon print" onclick="imprimirRegistroIndividual('${reg.id}')" title="Imprimir">🖨️</button>
-                        <button class="btn-icon delete" onclick="eliminarRegistro('${reg.id}')" title="Eliminar">🗑️</button>
-                    </div>
-                    ${reg.observacion ? `<small style="color:#ffd93d; display:block; margin-top:0.3rem;">📝 ${reg.observacion}</small>` : ''}
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
 // ==================== FUNCIONES DE IMPRESIÓN ====================
 
 function imprimirReportes() {
@@ -1198,53 +1252,6 @@ function imprimirRegistroSeleccionado() {
     } else {
         mostrarNotificacion('❌ Selecciona un registro', 'error');
     }
-}
-
-// ==================== FUNCIONES UTILITARIAS ====================
-
-function generarIdUnico() {
-    return 'CT-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4).toUpperCase();
-}
-
-function obtenerSemana(fecha) {
-    const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
-
-function formatearFecha(fechaStr) {
-    const fecha = new Date(fechaStr);
-    const dia = fecha.getDate().toString().padStart(2, '0');
-    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
-    const anio = fecha.getFullYear();
-    return `${dia}-${mes}-${anio}`;
-}
-
-function mostrarNotificacion(mensaje, tipo = 'success') {
-    const notificacion = document.createElement('div');
-    notificacion.textContent = mensaje;
-    notificacion.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 0.8rem 1.5rem;
-        background: ${tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6'};
-        color: white;
-        border-radius: 0.5rem;
-        z-index: 1000;
-        animation: slideIn 0.3s;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        font-weight: 500;
-    `;
-    
-    document.body.appendChild(notificacion);
-    
-    setTimeout(() => {
-        notificacion.style.animation = 'slideOut 0.3s';
-        setTimeout(() => document.body.removeChild(notificacion), 300);
-    }, 2500);
 }
 
 // Hacer funciones globales
