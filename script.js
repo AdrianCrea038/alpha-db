@@ -1,8 +1,8 @@
 // CONTROL T - Sistema de Gestión Premium
-// Versión 7.2 - Con historial compacto y mejorado
+// Versión 7.5 - Con validación de fechas corregida y número de plotter
 
 // ==================== CONFIGURACIÓN ====================
-const DB_VERSION = '7.2';
+const DB_VERSION = '7.5';
 const DB_EXTENSION = '.t';
 const SISTEMA_NOMBRE = 'CONTROL T';
 
@@ -17,6 +17,7 @@ let historialEdiciones = {};
 document.addEventListener('DOMContentLoaded', () => {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fecha').value = hoy;
+    document.getElementById('fecha').setAttribute('max', hoy); // No permitir fechas futuras
     
     document.getElementById('fecha').addEventListener('change', verificarFechaObservacion);
     
@@ -43,17 +44,23 @@ function toggleExtras() {
 }
 
 function verificarFechaObservacion() {
-    const fechaSeleccionada = new Date(document.getElementById('fecha').value);
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    const fechaSeleccionada = document.getElementById('fecha').value;
+    const hoy = new Date().toISOString().split('T')[0];
     
     const observacionContainer = document.getElementById('observacionContainer');
+    const observacionField = document.getElementById('observacion');
     
     if (fechaSeleccionada < hoy) {
+        // Fecha anterior: mostrar observación obligatoria
         observacionContainer.style.display = 'block';
+        observacionField.required = true;
+        observacionField.setAttribute('required', 'required');
     } else {
+        // Fecha actual o futura (pero no permitimos futuras por el max)
         observacionContainer.style.display = 'none';
-        document.getElementById('observacion').value = '';
+        observacionField.required = false;
+        observacionField.removeAttribute('required');
+        observacionField.value = '';
     }
 }
 
@@ -130,6 +137,7 @@ function exportarAExcel() {
         'Color 2': reg.color2_nombre ? `${reg.color2_nombre}: ${reg.color2_valor}` : '',
         'Color 3': reg.color3_nombre ? `${reg.color3_nombre}: ${reg.color3_valor}` : '',
         'Color 4': reg.color4_nombre ? `${reg.color4_nombre}: ${reg.color4_valor}` : '',
+        'N° Plotter': reg.numero_plotter || 0,
         'Plotter Temp': reg.plotter_temp || 0,
         'Plotter Humedad': reg.plotter_humedad || 0,
         'Plotter Perfil': reg.plotter_perfil || '',
@@ -162,12 +170,21 @@ function exportarAExcel() {
 function guardarRegistro(e) {
     e.preventDefault();
     
-    const fecha = new Date(document.getElementById('fecha').value);
-    const semana = obtenerSemana(fecha);
     const fechaStr = document.getElementById('fecha').value;
+    const fecha = new Date(fechaStr);
+    const semana = obtenerSemana(fecha);
     const editId = document.getElementById('editId').value;
     const ahora = new Date().toISOString();
     const observacion = document.getElementById('observacion').value;
+    
+    // Validar fechas (comparando strings YYYY-MM-DD)
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // Validar que si es fecha anterior, tenga observación
+    if (fechaStr < hoy && !observacion) {
+        mostrarNotificacion('❌ Debes agregar una observación para fechas anteriores', 'error');
+        return;
+    }
     
     // Obtener descripción de edición si existe
     let descripcionEdicion = '';
@@ -199,7 +216,8 @@ function guardarRegistro(e) {
         color4_nombre: document.getElementById('color4_nombre').value.toUpperCase() || '',
         color4_valor: parseFloat(document.getElementById('color4_valor').value) || 0,
         
-        // PLOTTER datos
+        // PLOTTER datos (con nuevo campo número)
+        numero_plotter: parseInt(document.getElementById('numero_plotter').value) || 0,
         plotter_temp: parseFloat(document.getElementById('plotter_temp').value) || 0,
         plotter_humedad: parseFloat(document.getElementById('plotter_humedad').value) || 0,
         plotter_perfil: document.getElementById('plotter_perfil').value.toUpperCase() || '',
@@ -270,49 +288,42 @@ function verHistorial(id) {
         html = '<p class="no-data">No hay historial de ediciones</p>';
     } else {
         html = historial.map((entry, index) => {
-            // Función para determinar estado del color
-            const getColorStatus = (valor) => {
-                if (valor < 30) return '⬆️ BAJO';
-                if (valor > 70) return '⬇️ ALTO';
-                return '✅ OK';
-            };
-            
             return `
                 <div class="historial-item">
-                    <div class="historial-fecha" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div class="historial-fecha">
                         <span>📅 ${new Date(entry.fecha).toLocaleString()}</span>
-                        <span style="color: #ffd93d; font-size: 0.8rem;">⚡ v${index + 2}</span>
-                        ${entry.descripcion ? `<span style="color: #ffd93d;">📝 ${entry.descripcion}</span>` : ''}
+                        <span class="historial-version">v${index + 2}</span>
+                        ${entry.descripcion ? `<span class="historial-descripcion">📝 ${entry.descripcion}</span>` : ''}
                     </div>
-                    <div style="margin-top: 8px; display: flex; gap: 15px; flex-wrap: wrap;">
-                        <div style="border-left: 2px solid #ff6b6b; padding-left: 8px;">
-                            <div style="font-size:0.7rem; color:#ff6b6b;">ANTERIOR</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px;">
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">📦 ${entry.anterior.po || 'N/A'}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">C:${entry.anterior.cyan.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">M:${entry.anterior.magenta.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">Y:${entry.anterior.yellow.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">K:${entry.anterior.black.toFixed(1)}</span>
-                                ${entry.anterior.color1_nombre ? `<span class="color-extra-1" style="padding:2px 6px;">${entry.anterior.color1_nombre}:${entry.anterior.color1_valor.toFixed(1)} ${getColorStatus(entry.anterior.color1_valor)}</span>` : ''}
-                                ${entry.anterior.color2_nombre ? `<span class="color-extra-2" style="padding:2px 6px;">${entry.anterior.color2_nombre}:${entry.anterior.color2_valor.toFixed(1)} ${getColorStatus(entry.anterior.color2_valor)}</span>` : ''}
-                                ${entry.anterior.color3_nombre ? `<span class="color-extra-3" style="padding:2px 6px;">${entry.anterior.color3_nombre}:${entry.anterior.color3_valor.toFixed(1)} ${getColorStatus(entry.anterior.color3_valor)}</span>` : ''}
-                                ${entry.anterior.color4_nombre ? `<span class="color-extra-4" style="padding:2px 6px;">${entry.anterior.color4_nombre}:${entry.anterior.color4_valor.toFixed(1)} ${getColorStatus(entry.anterior.color4_valor)}</span>` : ''}
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">🖨️ ${entry.anterior.plotter_temp.toFixed(1)}°/${entry.anterior.plotter_humedad.toFixed(0)}%</span>
+                    <div class="historial-cambios">
+                        <div class="historial-columna anterior">
+                            <div class="historial-columna-titulo">ANTERIOR</div>
+                            <div class="historial-badges">
+                                <span class="historial-badge po">📦 ${entry.anterior.po || 'N/A'}</span>
+                                <span class="historial-badge cmyk-c">C:${entry.anterior.cyan.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-m">M:${entry.anterior.magenta.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-y">Y:${entry.anterior.yellow.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-k">K:${entry.anterior.black.toFixed(1)}</span>
+                                ${entry.anterior.color1_nombre ? `<span class="historial-badge color1">${entry.anterior.color1_nombre}:${entry.anterior.color1_valor.toFixed(1)}</span>` : ''}
+                                ${entry.anterior.color2_nombre ? `<span class="historial-badge color2">${entry.anterior.color2_nombre}:${entry.anterior.color2_valor.toFixed(1)}</span>` : ''}
+                                ${entry.anterior.color3_nombre ? `<span class="historial-badge color3">${entry.anterior.color3_nombre}:${entry.anterior.color3_valor.toFixed(1)}</span>` : ''}
+                                ${entry.anterior.color4_nombre ? `<span class="historial-badge color4">${entry.anterior.color4_nombre}:${entry.anterior.color4_valor.toFixed(1)}</span>` : ''}
+                                <span class="historial-badge plotter">#${entry.anterior.numero_plotter || 0} ${entry.anterior.plotter_temp.toFixed(1)}°/${entry.anterior.plotter_humedad.toFixed(0)}%</span>
                             </div>
                         </div>
-                        <div style="border-left: 2px solid #4caf50; padding-left: 8px;">
-                            <div style="font-size:0.7rem; color:#4caf50;">NUEVO</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px;">
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">📦 ${entry.nuevo.po || 'N/A'}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">C:${entry.nuevo.cyan.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">M:${entry.nuevo.magenta.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">Y:${entry.nuevo.yellow.toFixed(1)}</span>
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">K:${entry.nuevo.black.toFixed(1)}</span>
-                                ${entry.nuevo.color1_nombre ? `<span class="color-extra-1" style="padding:2px 6px;">${entry.nuevo.color1_nombre}:${entry.nuevo.color1_valor.toFixed(1)} ${getColorStatus(entry.nuevo.color1_valor)}</span>` : ''}
-                                ${entry.nuevo.color2_nombre ? `<span class="color-extra-2" style="padding:2px 6px;">${entry.nuevo.color2_nombre}:${entry.nuevo.color2_valor.toFixed(1)} ${getColorStatus(entry.nuevo.color2_valor)}</span>` : ''}
-                                ${entry.nuevo.color3_nombre ? `<span class="color-extra-3" style="padding:2px 6px;">${entry.nuevo.color3_nombre}:${entry.nuevo.color3_valor.toFixed(1)} ${getColorStatus(entry.nuevo.color3_valor)}</span>` : ''}
-                                ${entry.nuevo.color4_nombre ? `<span class="color-extra-4" style="padding:2px 6px;">${entry.nuevo.color4_nombre}:${entry.nuevo.color4_valor.toFixed(1)} ${getColorStatus(entry.nuevo.color4_valor)}</span>` : ''}
-                                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">🖨️ ${entry.nuevo.plotter_temp.toFixed(1)}°/${entry.nuevo.plotter_humedad.toFixed(0)}%</span>
+                        <div class="historial-columna nuevo">
+                            <div class="historial-columna-titulo">NUEVO</div>
+                            <div class="historial-badges">
+                                <span class="historial-badge po">📦 ${entry.nuevo.po || 'N/A'}</span>
+                                <span class="historial-badge cmyk-c">C:${entry.nuevo.cyan.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-m">M:${entry.nuevo.magenta.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-y">Y:${entry.nuevo.yellow.toFixed(1)}</span>
+                                <span class="historial-badge cmyk-k">K:${entry.nuevo.black.toFixed(1)}</span>
+                                ${entry.nuevo.color1_nombre ? `<span class="historial-badge color1">${entry.nuevo.color1_nombre}:${entry.nuevo.color1_valor.toFixed(1)}</span>` : ''}
+                                ${entry.nuevo.color2_nombre ? `<span class="historial-badge color2">${entry.nuevo.color2_nombre}:${entry.nuevo.color2_valor.toFixed(1)}</span>` : ''}
+                                ${entry.nuevo.color3_nombre ? `<span class="historial-badge color3">${entry.nuevo.color3_nombre}:${entry.nuevo.color3_valor.toFixed(1)}</span>` : ''}
+                                ${entry.nuevo.color4_nombre ? `<span class="historial-badge color4">${entry.nuevo.color4_nombre}:${entry.nuevo.color4_valor.toFixed(1)}</span>` : ''}
+                                <span class="historial-badge plotter">#${entry.nuevo.numero_plotter || 0} ${entry.nuevo.plotter_temp.toFixed(1)}°/${entry.nuevo.plotter_humedad.toFixed(0)}%</span>
                             </div>
                         </div>
                     </div>
@@ -324,23 +335,24 @@ function verHistorial(id) {
     // Versión actual
     html += `
         <div class="historial-item" style="border-color: #ffd93d;">
-            <div class="historial-fecha" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div class="historial-fecha">
                 <span style="color: #ffd93d;">⚡ VERSIÓN ACTUAL ${registro.version}</span>
                 <span>${new Date(registro.actualizado).toLocaleString()}</span>
-                ${registro.descripcion_edicion ? `<span style="color: #ffd93d;">📝 ${registro.descripcion_edicion}</span>` : ''}
+                ${registro.descripcion_edicion ? `<span class="historial-descripcion">📝 ${registro.descripcion_edicion}</span>` : ''}
             </div>
-            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">📦 ${registro.po || 'N/A'}</span>
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">C:${registro.cyan.toFixed(1)}</span>
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">M:${registro.magenta.toFixed(1)}</span>
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">Y:${registro.yellow.toFixed(1)}</span>
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">K:${registro.black.toFixed(1)}</span>
-                ${registro.color1_nombre ? `<span class="color-extra-1" style="padding:2px 6px;">${registro.color1_nombre}:${registro.color1_valor.toFixed(1)}</span>` : ''}
-                ${registro.color2_nombre ? `<span class="color-extra-2" style="padding:2px 6px;">${registro.color2_nombre}:${registro.color2_valor.toFixed(1)}</span>` : ''}
-                ${registro.color3_nombre ? `<span class="color-extra-3" style="padding:2px 6px;">${registro.color3_nombre}:${registro.color3_valor.toFixed(1)}</span>` : ''}
-                ${registro.color4_nombre ? `<span class="color-extra-4" style="padding:2px 6px;">${registro.color4_nombre}:${registro.color4_valor.toFixed(1)}</span>` : ''}
-                <span style="background:#2a2a2a; padding:2px 6px; border-radius:4px;">🖨️ ${registro.plotter_temp.toFixed(1)}°/${registro.plotter_humedad.toFixed(0)}%</span>
+            <div class="historial-badges">
+                <span class="historial-badge po">📦 ${registro.po || 'N/A'}</span>
+                <span class="historial-badge cmyk-c">C:${registro.cyan.toFixed(1)}</span>
+                <span class="historial-badge cmyk-m">M:${registro.magenta.toFixed(1)}</span>
+                <span class="historial-badge cmyk-y">Y:${registro.yellow.toFixed(1)}</span>
+                <span class="historial-badge cmyk-k">K:${registro.black.toFixed(1)}</span>
+                ${registro.color1_nombre ? `<span class="historial-badge color1">${registro.color1_nombre}:${registro.color1_valor.toFixed(1)}</span>` : ''}
+                ${registro.color2_nombre ? `<span class="historial-badge color2">${registro.color2_nombre}:${registro.color2_valor.toFixed(1)}</span>` : ''}
+                ${registro.color3_nombre ? `<span class="historial-badge color3">${registro.color3_nombre}:${registro.color3_valor.toFixed(1)}</span>` : ''}
+                ${registro.color4_nombre ? `<span class="historial-badge color4">${registro.color4_nombre}:${registro.color4_valor.toFixed(1)}</span>` : ''}
+                <span class="historial-badge plotter">#${registro.numero_plotter || 0} ${registro.plotter_temp.toFixed(1)}°/${registro.plotter_humedad.toFixed(0)}%</span>
             </div>
+            ${registro.observacion ? `<div style="margin-top:0.5rem; color:#ffd93d; font-size:0.8rem;">📝 ${registro.observacion}</div>` : ''}
         </div>
     `;
     
@@ -376,7 +388,8 @@ function editarRegistro(id) {
     document.getElementById('color4_nombre').value = registro.color4_nombre || '';
     document.getElementById('color4_valor').value = registro.color4_valor || 0;
     
-    // PLOTTER
+    // PLOTTER datos (incluyendo número)
+    document.getElementById('numero_plotter').value = registro.numero_plotter || 0;
     document.getElementById('plotter_temp').value = registro.plotter_temp || 0;
     document.getElementById('plotter_humedad').value = registro.plotter_humedad || 0;
     document.getElementById('plotter_perfil').value = registro.plotter_perfil || '';
@@ -415,8 +428,10 @@ function resetFormulario() {
     editandoId = null;
     document.getElementById('editId').value = '';
     document.getElementById('registroForm').reset();
-    document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fecha').value = hoy;
     document.getElementById('observacionContainer').style.display = 'none';
+    document.getElementById('observacion').removeAttribute('required');
     document.getElementById('extrasContainer').style.display = 'none';
     document.getElementById('toggleExtrasBtn').innerHTML = '<span>🎨</span> MOSTRAR COLORES EXTRAS';
     
@@ -484,12 +499,6 @@ function generarDatosEjemplo() {
         'SUPLEX', 'COOLMAX', 'THERMAL', 'WINDPROOF', 'AQUABLOCK'
     ];
     
-    const colores = [
-        'ROJO', 'AZUL', 'VERDE', 'NEGRO', 'BLANCO',
-        'AMARILLO', 'MORADO', 'NARANJA', 'ROSADO', 'GRIS',
-        'TURQUESA', 'BURDEOS', 'OLIVA', 'DORADO', 'PLATEADO'
-    ];
-    
     const adhesivos = [
         'ST-100', 'ST-200', 'HT-45', 'HT-60', 'LT-30',
         'LT-50', 'XTREME 100', 'XTREME 200', 'PRO 300', 'PRO 400',
@@ -510,15 +519,17 @@ function generarDatosEjemplo() {
     ];
     
     const ahora = new Date().toISOString();
+    const hoy = new Date().toISOString().split('T')[0];
     
-    // Generar 30 registros de ejemplo
+    // Generar 30 registros de ejemplo (todos con fecha <= hoy)
     for (let i = 0; i < 30; i++) {
         const fecha = new Date();
-        // Fechas distribuidas en los últimos 60 días
+        // Fechas distribuidas en los últimos 60 días (siempre <= hoy)
         fecha.setDate(fecha.getDate() - (i * 2) - Math.floor(Math.random() * 5));
+        const fechaStr = fecha.toISOString().split('T')[0];
         
         // Algunos registros con fechas anteriores para mostrar observaciones
-        const esFechaAnterior = i > 20;
+        const esFechaAnterior = fechaStr < hoy;
         let observacion = null;
         if (esFechaAnterior) {
             const razones = [
@@ -544,12 +555,13 @@ function generarDatosEjemplo() {
         // Valores de plotter
         const plotterTemp = 18 + Math.random() * 15;
         const plotterHum = 35 + Math.random() * 25;
+        const numeroPlotter = Math.floor(Math.random() * 10) + 1;
         
         ejemplos.push({
             id: generarIdUnico(),
             po: i % 2 === 0 ? pos[Math.floor(Math.random() * pos.length)] : '', // La mitad tienen PO
             semana: obtenerSemana(fecha),
-            fecha: fecha.toISOString().split('T')[0],
+            fecha: fechaStr,
             estilo: estilos[Math.floor(Math.random() * estilos.length)],
             tela: telas[Math.floor(Math.random() * telas.length)],
             
@@ -569,6 +581,8 @@ function generarDatosEjemplo() {
             color4_nombre: tieneExtras ? coloresExtras[extraIndex][3] : '',
             color4_valor: tieneExtras ? parseFloat((Math.random() * 100).toFixed(1)) : 0,
             
+            // PLOTTER datos
+            numero_plotter: numeroPlotter,
             plotter_temp: parseFloat(plotterTemp.toFixed(1)),
             plotter_humedad: parseFloat(plotterHum.toFixed(0)),
             plotter_perfil: perfiles[Math.floor(Math.random() * perfiles.length)],
@@ -809,6 +823,7 @@ function filtrarRegistrosArray() {
             reg.color3_valor.toString().includes(currentSearch) ||
             (reg.color4_nombre && reg.color4_nombre.toLowerCase().includes(currentSearch)) ||
             reg.color4_valor.toString().includes(currentSearch) ||
+            reg.numero_plotter.toString().includes(currentSearch) ||
             reg.plotter_temp.toString().includes(currentSearch) ||
             reg.plotter_humedad.toString().includes(currentSearch) ||
             (reg.plotter_perfil && reg.plotter_perfil.toLowerCase().includes(currentSearch)) ||
@@ -856,7 +871,7 @@ function mostrarTabla(registrosMostrar) {
     const tbody = document.getElementById('tableBody');
     
     if (registrosMostrar.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="20" class="loading">📭 Sin resultados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="21" class="loading">📭 Sin resultados</td></tr>';
         return;
     }
     
@@ -866,14 +881,8 @@ function mostrarTabla(registrosMostrar) {
         
         // Formatear datos de plotter
         const plotterText = reg.plotter_temp ? 
-            `${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%/${reg.plotter_perfil}` : 
+            `#${reg.numero_plotter || 0} ${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
             '-';
-        
-        // Formatear colores extras
-        const color1 = reg.color1_nombre ? `<span class="color-extra-1">${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}</span>` : '-';
-        const color2 = reg.color2_nombre ? `<span class="color-extra-2">${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}</span>` : '-';
-        const color3 = reg.color3_nombre ? `<span class="color-extra-3">${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}</span>` : '-';
-        const color4 = reg.color4_nombre ? `<span class="color-extra-4">${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}</span>` : '-';
         
         return `
             <tr class="${rowClass}">
@@ -886,10 +895,10 @@ function mostrarTabla(registrosMostrar) {
                 <td style="color: #f472b6; font-weight: 600;">${reg.magenta.toFixed(1)}</td>
                 <td style="color: #fbbf24; font-weight: 600;">${reg.yellow.toFixed(1)}</td>
                 <td style="color: #9ca3af; font-weight: 600;">${reg.black.toFixed(1)}</td>
-                <td>${color1}</td>
-                <td>${color2}</td>
-                <td>${color3}</td>
-                <td>${color4}</td>
+                <td style="color: #9c27b0;">${reg.color1_nombre ? `${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #ff9800;">${reg.color2_nombre ? `${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #4caf50;">${reg.color3_nombre ? `${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #f44336;">${reg.color4_nombre ? `${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}` : '-'}</td>
                 <td><span style="background: #9c27b0; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${plotterText}</span></td>
                 <td>${reg.adhesivo}</td>
                 <td>${reg.temperatura_monti.toFixed(1)}°</td>
@@ -953,10 +962,11 @@ function imprimirReportes() {
                         <th>M</th>
                         <th>Y</th>
                         <th>K</th>
-                        <th>Color1</th>
-                        <th>Color2</th>
-                        <th>Color3</th>
-                        <th>Color4</th>
+                        <th>C1</th>
+                        <th>C2</th>
+                        <th>C3</th>
+                        <th>C4</th>
+                        <th>N°Plot</th>
                         <th>Plotter</th>
                         <th>Adh</th>
                         <th>T°M</th>
@@ -993,6 +1003,7 @@ function imprimirReportes() {
                 <td>${color2}</td>
                 <td>${color3}</td>
                 <td>${color4}</td>
+                <td>${reg.numero_plotter || 0}</td>
                 <td>${plotterText}</td>
                 <td>${reg.adhesivo}</td>
                 <td>${reg.temperatura_monti.toFixed(1)}°</td>
@@ -1023,7 +1034,7 @@ function imprimirRegistroIndividual(id) {
     const ventanaImpresion = window.open('', '_blank');
     
     const plotterText = registro.plotter_temp ? 
-        `${registro.plotter_temp.toFixed(1)}°C / ${registro.plotter_humedad.toFixed(0)}% / ${registro.plotter_perfil}` : 
+        `N° ${registro.numero_plotter || 0} - ${registro.plotter_temp.toFixed(1)}°C / ${registro.plotter_humedad.toFixed(0)}%` : 
         'No registrado';
     
     const htmlContenido = `

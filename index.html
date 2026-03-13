@@ -16,7 +16,7 @@
             <div class="header-top">
                 <div class="logo-container">
                     <h1>⚡ CONTROL T</h1>
-                    <span class="version">v7.0</span>
+                    <span class="version">v7.5</span>
                 </div>
                 <div class="header-actions">
                     <button id="exportarDBBtn" class="btn-secondary">
@@ -130,11 +130,12 @@
                     </div>
                 </div>
 
-                <!-- PLOTTER -->
+                <!-- PLOTTER - Con nuevo campo número -->
                 <div class="form-row plotter-row">
                     <div class="form-group plotter-group">
                         <label>🖨️ PLOTTER</label>
-                        <div class="plotter-subgroup">
+                        <div class="plotter-subgroup" style="grid-template-columns: repeat(4, 1fr);">
+                            <input type="number" id="numero_plotter" step="1" min="0" placeholder="N° Plotter">
                             <input type="number" id="plotter_temp" step="0.1" placeholder="Temperatura °C">
                             <input type="number" id="plotter_humedad" step="0.1" placeholder="Humedad %">
                             <input type="text" id="plotter_perfil" placeholder="Perfil">
@@ -253,10 +254,10 @@
                             <th>M</th>
                             <th>Y</th>
                             <th>K</th>
-                            <th>COLOR1</th>
-                            <th>COLOR2</th>
-                            <th>COLOR3</th>
-                            <th>COLOR4</th>
+                            <th>C1</th>
+                            <th>C2</th>
+                            <th>C3</th>
+                            <th>C4</th>
                             <th>PLOTTER</th>
                             <th>ADHESIVO</th>
                             <th>T° M</th>
