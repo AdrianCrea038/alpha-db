@@ -1,9 +1,9 @@
 // ALPHA DB - Sistema de Gestión Premium
-// Versión 8.6 - CORREGIDO (Fecha reformulación + todos los datos)
+// Versión 8.7 - CORREGIDO (Orden de funciones)
 
 // ==================== CONFIGURACIÓN ====================
 const SISTEMA_NOMBRE = 'ALPHA DB';
-const DB_VERSION = '8.6';
+const DB_VERSION = '8.7';
 const DB_EXTENSION = '.adb';
 
 // Estado de la aplicación
@@ -379,6 +379,69 @@ window.filtrarPorSemana = (semana) => {
     actualizarUI();
     actualizarEstadisticas();
 };
+
+// ==================== FUNCIONES DE HISTORIAL (DEFINIDAS ANTES DE USARSE) ====================
+
+function verHistorial(id) {
+    const registro = registros.find(r => r.id === id);
+    if (!registro) return;
+    
+    const historial = historialEdiciones[id] || [];
+    const modal = document.getElementById('modalHistorial');
+    const container = document.getElementById('historialContainer');
+    
+    if (!modal || !container) return;
+    
+    let html = '';
+    
+    if (historial.length === 0) {
+        html = '<p class="no-data">No hay historial de ediciones</p>';
+    } else {
+        html = historial.map((entry, index) => {
+            return `
+                <div class="historial-item">
+                    <div class="historial-fecha">
+                        <span>📅 ${new Date(entry.fecha).toLocaleString()}</span>
+                        <span class="historial-version">v${index + 2}</span>
+                        ${entry.descripcion ? `<span class="historial-descripcion">📝 ${entry.descripcion}</span>` : ''}
+                    </div>
+                    <div style="margin-top:0.5rem; display: flex; gap: 1rem;">
+                        <div style="flex:1; border-left: 2px solid #ff6b6b; padding-left: 0.5rem;">
+                            <div style="font-size:0.7rem; color:#ff6b6b;">ANTERIOR</div>
+                            <div>PO: ${entry.anterior.po || '-'}</div>
+                            <div>Proceso: ${entry.anterior.proceso || '-'}</div>
+                            <div>Versión: v${entry.anterior.version || 1}</div>
+                        </div>
+                        <div style="flex:1; border-left: 2px solid #4caf50; padding-left: 0.5rem;">
+                            <div style="font-size:0.7rem; color:#4caf50;">NUEVO</div>
+                            <div>PO: ${entry.nuevo.po || '-'}</div>
+                            <div>Proceso: ${entry.nuevo.proceso || '-'}</div>
+                            <div>Versión: v${entry.nuevo.version || 2}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    html += `
+        <div class="historial-item" style="border-color: #ffd93d;">
+            <div class="historial-fecha">
+                <span style="color: #ffd93d;">⚡ VERSIÓN ACTUAL ${registro.version}</span>
+                <span>${new Date(registro.actualizado).toLocaleString()}</span>
+                ${registro.descripcion_edicion ? `<span>📝 ${registro.descripcion_edicion}</span>` : ''}
+            </div>
+            <div style="margin-top:0.5rem;">
+                <div>PO: ${registro.po || '-'} | Proceso: ${registro.proceso || '-'}</div>
+                <div>Colores: ${registro.colores ? registro.colores.length : 0}</div>
+            </div>
+            ${registro.observacion ? `<div style="margin-top:0.5rem; color:#ffd93d;">📝 ${registro.observacion}</div>` : ''}
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    modal.classList.add('show');
+}
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1088,8 +1151,7 @@ function imprimirReportesHandler() {
     ventanaImpresion.document.close();
 }
 
-// ==================== IMPRESIÓN INDIVIDUAL CON TODOS LOS DATOS ====================
-// CAMBIO PRINCIPAL: Fecha de reformulación + todos los datos de colores
+// ==================== IMPRESIÓN INDIVIDUAL ====================
 function imprimirRegistroIndividual(id) {
     const registro = registros.find(r => r.id === id);
     if (!registro) {
@@ -1099,10 +1161,10 @@ function imprimirRegistroIndividual(id) {
     
     const ventanaImpresion = window.open('', '_blank');
     
-    // QR con datos mínimos (para evitar overflow)
+    // QR con datos mínimos
     const qrData = `PO:${registro.po || 'S/PO'}|V:${registro.version}|F:${registro.fecha}`;
     
-    // Generar HTML de colores dinámicos
+    // Generar HTML de colores
     let coloresHtml = '';
     if (registro.colores && registro.colores.length > 0) {
         coloresHtml = registro.colores.map(c => `
@@ -1162,7 +1224,6 @@ function imprimirRegistroIndividual(id) {
                     </div>
                 </div>
                 
-                <!-- CAMBIO: Ahora dice "FECHA DE REFORMULACIÓN" -->
                 <div class="info-grid">
                     <div><strong>FECHA DE REFORMULACIÓN:</strong> ${formatearFecha(registro.fecha)}</div>
                     <div><strong>Semana:</strong> ${registro.semana}</div>
@@ -1172,13 +1233,11 @@ function imprimirRegistroIndividual(id) {
                     <div><strong>Reemplazo:</strong> ${registro.esReemplazo ? 'SÍ' : 'NO'}</div>
                 </div>
                 
-                <!-- TODOS LOS COLORES (restaurados) -->
                 <div class="seccion-titulo">🎨 ESPECIFICACIÓN DE COLORES</div>
                 <div class="colores-lista">
                     ${coloresHtml}
                 </div>
                 
-                <!-- PARÁMETROS (Monti con mismo estilo que Plotter y Flat) -->
                 <div class="seccion-titulo">⚙️ PARÁMETROS DE PRODUCCIÓN</div>
                 <div class="param-grid">
                     <div class="param-box">
