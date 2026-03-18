@@ -1,9 +1,9 @@
 // ALPHA DB - Sistema de Gestión Premium
-// Versión 8.4 - CON COLORES DINÁMICOS Y QR CORREGIDO
+// Versión 8.5 - CORREGIDO (Monti visible + QR funcional)
 
 // ==================== CONFIGURACIÓN ====================
 const SISTEMA_NOMBRE = 'ALPHA DB';
-const DB_VERSION = '8.4';
+const DB_VERSION = '8.5';
 const DB_EXTENSION = '.adb';
 
 // Estado de la aplicación
@@ -12,7 +12,7 @@ let currentSearch = '';
 let currentSemana = '';
 let editandoId = null;
 let historialEdiciones = {};
-let contadorColores = 1; // Para IDs únicos
+let contadorColores = 1;
 
 // ==================== FUNCIONES UTILITARIAS ====================
 
@@ -179,25 +179,15 @@ function filtrarRegistrosArray() {
         
         if (!termino) return true;
         
-        // Buscar en todos los campos incluyendo colores dinámicos
         let textoBusqueda = safeToString(reg.po) + ' ' + 
                            safeToString(reg.proceso) + ' ' + 
                            safeToString(reg.estilo) + ' ' + 
                            safeToString(reg.tela) + ' ' + 
                            safeToString(reg.adhesivo);
         
-        // Agregar colores dinámicos
         if (reg.colores && Array.isArray(reg.colores)) {
             reg.colores.forEach(color => {
                 textoBusqueda += ' ' + safeToString(color.nombre);
-                textoBusqueda += ' ' + safeToString(color.cyan);
-                textoBusqueda += ' ' + safeToString(color.magenta);
-                textoBusqueda += ' ' + safeToString(color.yellow);
-                textoBusqueda += ' ' + safeToString(color.black);
-                textoBusqueda += ' ' + safeToString(color.turquesa);
-                textoBusqueda += ' ' + safeToString(color.naranja);
-                textoBusqueda += ' ' + safeToString(color.fluorYellow);
-                textoBusqueda += ' ' + safeToString(color.fluorPink);
             });
         }
         
@@ -257,7 +247,6 @@ function mostrarTabla(registrosMostrar) {
             `<span style="background: ${getProcesoColor(reg.proceso)}; color:white; padding:0.2rem 0.5rem; border-radius:1rem;">${reg.proceso}</span>` : 
             '-';
         
-        // Mostrar colores de forma compacta
         let coloresHtml = '';
         if (reg.colores && reg.colores.length > 0) {
             coloresHtml = reg.colores.map(c => 
@@ -401,14 +390,12 @@ document.addEventListener('DOMContentLoaded', () => {
         fechaInput.addEventListener('change', verificarFechaObservacion);
     }
     
-    // Inicializar con un grupo de color por defecto
     setTimeout(() => {
         if (document.getElementById('coloresContainer').children.length === 0) {
             agregarGrupoColor();
         }
     }, 100);
     
-    // Botón para agregar colores
     const agregarBtn = document.getElementById('agregarColorBtn');
     if (agregarBtn) {
         agregarBtn.addEventListener('click', () => {
@@ -533,7 +520,6 @@ function configurarEventos() {
 function exportarAExcel() {
     if (typeof XLSX === 'undefined') {
         mostrarNotificacion('❌ Error: Librería XLSX no cargada', 'error');
-        console.error('XLSX no está definido');
         return;
     }
     
@@ -559,15 +545,15 @@ function exportarAExcel() {
                 'Plotter Temp': reg.plotter_temp || 0,
                 'Plotter Humedad': reg.plotter_humedad || 0,
                 'Plotter Perfil': reg.plotter_perfil || '',
-                'Adhesivo': reg.adhesivo,
+                'N° Monti': reg.monti_numero || 0,
                 'Temp Monti °C': reg.temperatura_monti,
                 'Vel Monti m/min': reg.velocidad_monti,
                 'Temp Flat °C': reg.temperatura_flat,
                 'Tiempo Flat s': reg.tiempo_flat,
+                'Adhesivo': reg.adhesivo,
                 'Observación': reg.observacion || ''
             };
             
-            // Agregar colores dinámicos
             if (reg.colores && reg.colores.length > 0) {
                 reg.colores.forEach((color, idx) => {
                     fila[`Color ${idx+1} Nombre`] = color.nombre || '';
@@ -600,11 +586,10 @@ function exportarAExcel() {
 }
 
 // ==================== MANEJO DE REGISTROS ====================
-
+// CORRECCIÓN #1: Agregado monti_numero al guardar
 function guardarRegistro(e) {
     e.preventDefault();
     
-    // Verificar que todos los elementos existen
     const fechaStr = document.getElementById('fecha')?.value;
     const po = document.getElementById('po')?.value;
     const proceso = document.getElementById('proceso')?.value;
@@ -624,7 +609,6 @@ function guardarRegistro(e) {
     
     const hoy = new Date().toISOString().split('T')[0];
     
-    // Validar fecha anterior con observación
     if (fechaStr < hoy && !observacion) {
         mostrarNotificacion('❌ Debes agregar una observación para fechas anteriores', 'error');
         return;
@@ -635,9 +619,9 @@ function guardarRegistro(e) {
         descripcionEdicion = prompt('📝 Describe brevemente qué cambios realizaste en esta edición:', '');
     }
     
-    // Obtener colores dinámicos
     const colores = obtenerColoresDeFormulario();
     
+    // ⚠️ CORRECCIÓN: Agregado monti_numero explícitamente
     const registroData = {
         id: editId || generarIdUnico(),
         po: po.toUpperCase(),
@@ -648,7 +632,6 @@ function guardarRegistro(e) {
         estilo: estilo.toUpperCase(),
         tela: tela.toUpperCase(),
         
-        // Array de colores dinámicos
         colores: colores,
         
         numero_plotter: parseInt(document.getElementById('numero_plotter')?.value) || 0,
@@ -656,12 +639,15 @@ function guardarRegistro(e) {
         plotter_humedad: parseFloat(document.getElementById('plotter_humedad')?.value) || 0,
         plotter_perfil: document.getElementById('plotter_perfil')?.value.toUpperCase() || '',
         
-        adhesivo: document.getElementById('adhesivo')?.value.toUpperCase() || '',
+        // ✅ CAMBIO IMPORTANTE: Guardar monti_numero
+        monti_numero: parseInt(document.getElementById('monti_numero')?.value) || 0,
         
         temperatura_monti: parseFloat(document.getElementById('temp_monti')?.value) || 0,
         velocidad_monti: parseFloat(document.getElementById('vel_monti')?.value) || 0,
         temperatura_flat: parseFloat(document.getElementById('temp_flat')?.value) || 0,
         tiempo_flat: parseFloat(document.getElementById('tiempo_flat')?.value) || 0,
+        
+        adhesivo: document.getElementById('adhesivo')?.value.toUpperCase() || '',
         creado: ahora,
         actualizado: ahora,
         version: 1,
@@ -725,14 +711,10 @@ function editarRegistro(id) {
     editandoId = id;
     document.getElementById('editId').value = id;
     
-    // Limpiar contenedor de colores
     const container = document.getElementById('coloresContainer');
     container.innerHTML = '';
-    
-    // Recargar contador
     contadorColores = 1;
     
-    // Agregar colores del registro
     if (registro.colores && registro.colores.length > 0) {
         registro.colores.forEach(color => {
             agregarGrupoColor(
@@ -742,7 +724,6 @@ function editarRegistro(id) {
             );
         });
     } else {
-        // Si no tiene colores, agregar uno vacío
         agregarGrupoColor();
     }
     
@@ -764,11 +745,15 @@ function editarRegistro(id) {
     setValueIfExists('plotter_humedad', registro.plotter_humedad);
     setValueIfExists('plotter_perfil', registro.plotter_perfil);
     
-    setValueIfExists('adhesivo', registro.adhesivo);
+    // ✅ Cargar monti_numero al editar
+    setValueIfExists('monti_numero', registro.monti_numero);
+    
     setValueIfExists('temp_monti', registro.temperatura_monti);
     setValueIfExists('vel_monti', registro.velocidad_monti);
     setValueIfExists('temp_flat', registro.temperatura_flat);
     setValueIfExists('tiempo_flat', registro.tiempo_flat);
+    
+    setValueIfExists('adhesivo', registro.adhesivo);
     
     verificarFechaObservacion();
     if (registro.observacion) {
@@ -862,7 +847,6 @@ function resetFormulario() {
     document.getElementById('editId').value = '';
     document.getElementById('registroForm').reset();
     
-    // Resetear colores
     const container = document.getElementById('coloresContainer');
     container.innerHTML = '';
     contadorColores = 1;
@@ -937,17 +921,16 @@ function generarDatosEjemplo() {
     const procesos = ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'];
     const estilos = ['LIBRE', 'MARIPOSA', 'PECHO', 'ESPALDA'];
     const telas = ['ALGODÓN', 'POLIÉSTER', 'NYLON'];
-    const nombresColores = ['ROJO INTENSO', 'AZUL MARINO', 'VERDE BANDEIRA', 'AMARILLO ORO'];
+    const nombresColores = ['ROJO INTENSO', 'AZUL MARINO', 'VERDE BANDEIRA'];
     const ahora = new Date().toISOString();
     const hoy = new Date().toISOString().split('T')[0];
     
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
         const fecha = new Date();
         fecha.setDate(fecha.getDate() - i * 2);
         const fechaStr = fecha.toISOString().split('T')[0];
         
-        // Crear 1-3 colores por registro
-        const numColores = Math.floor(Math.random() * 3) + 1;
+        const numColores = Math.floor(Math.random() * 2) + 1;
         const colores = [];
         
         for (let j = 0; j < numColores; j++) {
@@ -979,11 +962,12 @@ function generarDatosEjemplo() {
             plotter_temp: parseFloat((20 + Math.random() * 10).toFixed(1)),
             plotter_humedad: parseFloat((40 + Math.random() * 20).toFixed(0)),
             plotter_perfil: ['BAJO', 'MEDIO', 'ALTO'][Math.floor(Math.random() * 3)],
-            adhesivo: 'TIPO A',
+            monti_numero: Math.floor(Math.random() * 10) + 1,
             temperatura_monti: parseFloat((170 + Math.random() * 20).toFixed(1)),
             velocidad_monti: parseFloat((2 + Math.random() * 2).toFixed(1)),
             temperatura_flat: parseFloat((150 + Math.random() * 20).toFixed(1)),
             tiempo_flat: parseFloat((10 + Math.random() * 10).toFixed(1)),
+            adhesivo: 'TIPO A',
             creado: ahora,
             actualizado: ahora,
             version: 1,
@@ -1085,7 +1069,7 @@ function importarBaseDatos(event) {
     event.target.value = '';
 }
 
-// ==================== FUNCIONES DE IMPRESIÓN CON QR CORREGIDO ====================
+// ==================== FUNCIONES DE IMPRESIÓN ====================
 
 function imprimirReportesHandler() {
     const registrosFiltrados = filtrarRegistrosArray();
@@ -1126,9 +1110,7 @@ function imprimirReportesHandler() {
                         <th>Fecha</th>
                         <th>Estilo</th>
                         <th>Tela</th>
-                        <th>Colores</th>
-                        <th>Plotter</th>
-                        <th>Adh</th>
+                        <th>N°Monti</th>
                         <th>T°M</th>
                         <th>Vel</th>
                         <th>T°F</th>
@@ -1139,16 +1121,6 @@ function imprimirReportesHandler() {
     `;
     
     registrosFiltrados.forEach(reg => {
-        const plotterText = reg.plotter_temp ? 
-            `${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
-            '-';
-        
-        // Resumir colores
-        let coloresResumen = '-';
-        if (reg.colores && reg.colores.length > 0) {
-            coloresResumen = reg.colores.map(c => c.nombre).join(', ');
-        }
-        
         htmlContenido += `
             <tr>
                 <td>${reg.po || '-'}</td>
@@ -1159,9 +1131,7 @@ function imprimirReportesHandler() {
                 <td>${formatearFecha(reg.fecha)}</td>
                 <td>${reg.estilo}</td>
                 <td>${reg.tela}</td>
-                <td>${coloresResumen}</td>
-                <td>${plotterText}</td>
-                <td>${reg.adhesivo || '-'}</td>
+                <td>${reg.monti_numero || 0}</td>
                 <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
                 <td>${(reg.velocidad_monti || 0).toFixed(1)}</td>
                 <td>${(reg.temperatura_flat || 0).toFixed(1)}°</td>
@@ -1183,7 +1153,8 @@ function imprimirReportesHandler() {
     ventanaImpresion.document.close();
 }
 
-// ==================== IMPRESIÓN INDIVIDUAL CORREGIDA ====================
+// ==================== IMPRESIÓN INDIVIDUAL CON QR CORREGIDO ====================
+// CORRECCIÓN #2: Monti visible y QR reducido
 function imprimirRegistroIndividual(id) {
     const registro = registros.find(r => r.id === id);
     if (!registro) {
@@ -1193,7 +1164,7 @@ function imprimirRegistroIndividual(id) {
     
     const ventanaImpresion = window.open('', '_blank');
     
-    // QR con SOLO 100 caracteres (bien dentro del límite)
+    // ✅ QR con SOLO 100 caracteres (evita overflow)
     const qrData = `PO:${registro.po || 'S/PO'}|V:${registro.version}|F:${registro.fecha}`;
     
     const htmlContenido = `
@@ -1210,11 +1181,20 @@ function imprimirRegistroIndividual(id) {
                 .version-destacado { font-size:24px; font-weight:900; color:#ff0000; }
                 .info-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; background:#f5f5f5; padding:15px; border-radius:10px; margin:20px 0; }
                 .param-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin:20px 0; }
-                .param-box { background:#f0f0f0; padding:12px; border-radius:8px; border-left:4px solid #000; }
+                .param-box { background:#f0f0f0; padding:15px; border-radius:8px; border-left:4px solid #000; }
+                .monti-numero { 
+                    font-size: 24px; 
+                    font-weight: 900; 
+                    color: #ff0000;
+                    background: #ffe6e6;
+                    padding: 5px 10px;
+                    border-radius: 10px;
+                    display: inline-block;
+                    margin: 5px 0;
+                }
                 .qr-container { text-align:center; margin:20px 0; padding:20px; background:#f9f9f9; }
                 #qrcode { display:inline-block; background:white; padding:10px; border:2px solid #000; border-radius:10px; }
                 .footer { text-align:center; border-top:2px solid #000; padding-top:15px; margin-top:20px; }
-                .error { color:red; text-align:center; padding:20px; }
             </style>
         </head>
         <body>
@@ -1240,30 +1220,38 @@ function imprimirRegistroIndividual(id) {
                     <div class="param-box">
                         <strong>🖨️ PLOTTER</strong><br>
                         N° ${registro.numero_plotter || 0}<br>
-                        Temp: ${(registro.plotter_temp || 0).toFixed(1)}°C
+                        Temp: ${(registro.plotter_temp || 0).toFixed(1)}°C<br>
+                        Hum: ${(registro.plotter_humedad || 0).toFixed(0)}%
                     </div>
+                    
                     <div class="param-box">
                         <strong>🔥 MONTI</strong><br>
-                        <span style="font-size:18px; font-weight:bold; color:#ff0000;">
+                        <!-- ✅ NÚMERO DE MONTI EN GRANDE Y ROJO -->
+                        <span class="monti-numero">
                             N° ${registro.monti_numero || 0}
                         </span><br>
                         Temp: ${(registro.temperatura_monti || 0).toFixed(1)}°C<br>
-                        Vel: ${(registro.velocidad_monti || 0).toFixed(1)} m/min
+                        Vel: ${(registro.velocidad_monti || 0).toFixed(1)} m/min<br>
+                        Presión: ${(registro.monti_presion || 0).toFixed(1)} bar
                     </div>
+                    
                     <div class="param-box">
                         <strong>📏 FLAT</strong><br>
                         Temp: ${(registro.temperatura_flat || 0).toFixed(1)}°C<br>
-                        Tiempo: ${(registro.tiempo_flat || 0).toFixed(1)} s
+                        Tiempo: ${(registro.tiempo_flat || 0).toFixed(1)} s<br>
+                        Adhesivo: ${registro.adhesivo || '-'}
                     </div>
                 </div>
                 
                 <div class="qr-container">
                     <div id="qrcode"></div>
-                    <p style="font-size:10px; margin-top:10px;">Escanea para ver PO: ${registro.po}</p>
+                    <p style="font-size:10px; margin-top:10px;">ID: ${registro.id}</p>
                 </div>
                 
+                ${registro.observacion ? `<div style="margin-top:15px; padding:10px; background:#fff3cd; border-left:4px solid #ffd93d;">📝 ${registro.observacion}</div>` : ''}
+                
                 <div class="footer">
-                    <strong>ALPHA DB</strong> | ID: ${registro.id}
+                    <strong>ALPHA DB</strong> | Impreso: ${new Date().toLocaleString()}
                 </div>
             </div>
             
@@ -1272,11 +1260,14 @@ function imprimirRegistroIndividual(id) {
                     new QRCode(document.getElementById("qrcode"), {
                         text: ${JSON.stringify(qrData)},
                         width: 150,
-                        height: 150
+                        height: 150,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff"
                     });
                     setTimeout(() => window.print(), 500);
                 } catch(e) {
-                    document.getElementById("qrcode").innerHTML = '<div class="error">Error QR</div>';
+                    console.error('Error QR:', e);
+                    document.getElementById("qrcode").innerHTML = '<div style="color:red;">Error QR</div>';
                     setTimeout(() => window.print(), 500);
                 }
             <\/script>
@@ -1287,6 +1278,36 @@ function imprimirRegistroIndividual(id) {
     ventanaImpresion.document.write(htmlContenido);
     ventanaImpresion.document.close();
 }
+
+function abrirModalSeleccionRegistro() {
+    const select = document.getElementById('selectRegistroImprimir');
+    const modal = document.getElementById('modalImpresion');
+    
+    if (!select || !modal) return;
+    
+    if (registros.length === 0) {
+        select.innerHTML = '<option value="">No hay registros</option>';
+    } else {
+        select.innerHTML = registros.map(reg => {
+            return `<option value="${reg.id}">${reg.po || 'S/PO'} v${reg.version || 1} | ${reg.fecha}</option>`;
+        }).join('');
+    }
+    
+    modal.classList.add('show');
+}
+
+function imprimirRegistroSeleccionado() {
+    const select = document.getElementById('selectRegistroImprimir');
+    const id = select ? select.value : null;
+    
+    if (id) {
+        document.getElementById('modalImpresion').classList.remove('show');
+        imprimirRegistroIndividual(id);
+    } else {
+        mostrarNotificacion('❌ Selecciona un registro', 'error');
+    }
+}
+
 // Hacer funciones globales
 window.editarRegistro = editarRegistro;
 window.verHistorial = verHistorial;
