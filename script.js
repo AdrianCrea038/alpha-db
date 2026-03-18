@@ -1,10 +1,10 @@
-// CONTROL T - Sistema de Gestión Premium
-// Versión 7.5 - Con filtro corregido
+// ALPHA DB - Sistema de Gestión Premium
+// Versión 8.3 - CORREGIDO (Sin estructura circular)
 
 // ==================== CONFIGURACIÓN ====================
-const DB_VERSION = '7.5';
-const DB_EXTENSION = '.t';
-const SISTEMA_NOMBRE = 'CONTROL T';
+const SISTEMA_NOMBRE = 'ALPHA DB';
+const DB_VERSION = '8.3';
+const DB_EXTENSION = '.adb';
 
 // Estado de la aplicación
 let registros = [];
@@ -13,10 +13,10 @@ let currentSemana = '';
 let editandoId = null;
 let historialEdiciones = {};
 
-// ==================== FUNCIONES UTILITARIAS (DEFINIR PRIMERO) ====================
+// ==================== FUNCIONES UTILITARIAS ====================
 
 function generarIdUnico() {
-    return 'CT-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4).toUpperCase();
+    return 'ADB-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4).toUpperCase();
 }
 
 function obtenerSemana(fecha) {
@@ -28,6 +28,7 @@ function obtenerSemana(fecha) {
 }
 
 function formatearFecha(fechaStr) {
+    if (!fechaStr) return '';
     const fecha = new Date(fechaStr);
     const dia = fecha.getDate().toString().padStart(2, '0');
     const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
@@ -60,44 +61,31 @@ function mostrarNotificacion(mensaje, tipo = 'success') {
     }, 2500);
 }
 
-// ==================== FILTROS Y UI (DEFINIR ANTES DE USAR) ====================
+// ==================== FILTROS Y UI ====================
 
 function filtrarRegistrosArray() {
-    console.log('Filtrando con:', { currentSearch, currentSemana });
-    
-    // Si no hay filtros, devolver todos los registros
-    if (!currentSearch && !currentSemana) {
-        console.log('Sin filtros, devolviendo todos:', registros.length);
-        return registros;
-    }
+    if (!currentSearch && !currentSemana) return registros;
     
     const termino = currentSearch ? currentSearch.toLowerCase().trim() : '';
-    console.log('Término de búsqueda:', termino);
     
-    // Función auxiliar para convertir valores a string de forma segura
     const safeToString = (valor) => {
         if (valor === undefined || valor === null) return '';
         return valor.toString();
     };
     
     const resultados = registros.filter(reg => {
-        // Primero filtrar por semana si existe
         if (currentSemana) {
             const semanaReg = parseInt(reg.semana);
             const semanaFiltro = parseInt(currentSemana);
-            if (semanaReg !== semanaFiltro) {
-                return false;
-            }
+            if (semanaReg !== semanaFiltro) return false;
         }
         
-        // Si no hay término de búsqueda, solo aplicar filtro de semana
-        if (!termino) {
-            return true;
-        }
+        if (!termino) return true;
         
-        // Crear un string con TODOS los datos del registro para buscar
         const datosCompletos = [
             safeToString(reg.po),
+            safeToString(reg.proceso),
+            safeToString(reg.esReemplazo ? 'reemplazo' : 'produccion'),
             safeToString(reg.estilo),
             safeToString(reg.tela),
             safeToString(reg.cyan),
@@ -130,7 +118,6 @@ function filtrarRegistrosArray() {
         return datosCompletos.includes(termino);
     });
     
-    console.log('Resultados encontrados:', resultados.length);
     return resultados;
 }
 
@@ -147,21 +134,27 @@ function actualizarEstadisticas() {
     const filtroBadge = document.getElementById('filtroActivo');
     const totalSpan = document.getElementById('totalRegistros');
     
-    totalSpan.innerHTML = `${totalRegistros} registros`;
+    if (totalSpan) {
+        totalSpan.innerHTML = `${totalRegistros} registros`;
+    }
     
-    if (currentSemana || currentSearch) {
-        filtroBadge.style.display = 'inline';
-        filtroBadge.innerHTML = `${registrosFiltrados.length} resultados`;
-    } else {
-        filtroBadge.style.display = 'none';
+    if (filtroBadge) {
+        if (currentSemana || currentSearch) {
+            filtroBadge.style.display = 'inline';
+            filtroBadge.innerHTML = `${registrosFiltrados.length} resultados`;
+        } else {
+            filtroBadge.style.display = 'none';
+        }
     }
 }
 
 function mostrarTabla(registrosMostrar) {
     const tbody = document.getElementById('tableBody');
     
+    if (!tbody) return;
+    
     if (registrosMostrar.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="20" class="loading">📭 Sin resultados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="23" class="loading">📭 Sin resultados</td></tr>';
         return;
     }
     
@@ -169,37 +162,44 @@ function mostrarTabla(registrosMostrar) {
         const tieneHistorial = historialEdiciones[reg.id] && historialEdiciones[reg.id].length > 0;
         const rowClass = tieneHistorial ? 'has-history' : '';
         
-        // Formatear datos de plotter
         const plotterText = reg.plotter_temp ? 
             `#${reg.numero_plotter || 0} ${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
             '-';
         
+        const reemplazoIcon = reg.esReemplazo ? '🔄 Sí' : '⚙️ No';
+        const procesoBadge = reg.proceso ? 
+            `<span style="background: ${getProcesoColor(reg.proceso)}; color:white; padding:0.2rem 0.5rem; border-radius:1rem;">${reg.proceso}</span>` : 
+            '-';
+        
         return `
             <tr class="${rowClass}">
-                <td><span class="po-badge">${reg.po || '-'}</span></td>
+                <td><span class="po-badge" style="font-size:0.9rem;">${reg.po || '-'}</span></td>
+                <td><span style="background:#ff0000; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-weight:900;">v${reg.version || 1}</span></td>
+                <td>${procesoBadge}</td>
+                <td>${reemplazoIcon}</td>
                 <td>${reg.semana}</td>
                 <td>${formatearFecha(reg.fecha)}</td>
                 <td>${reg.estilo}</td>
                 <td>${reg.tela}</td>
-                <td style="color: #60a5fa; font-weight: 600;">${reg.cyan.toFixed(1)}</td>
-                <td style="color: #f472b6; font-weight: 600;">${reg.magenta.toFixed(1)}</td>
-                <td style="color: #fbbf24; font-weight: 600;">${reg.yellow.toFixed(1)}</td>
-                <td style="color: #9ca3af; font-weight: 600;">${reg.black.toFixed(1)}</td>
-                <td style="color: #9c27b0;">${reg.color1_nombre ? `${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #ff9800;">${reg.color2_nombre ? `${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #4caf50;">${reg.color3_nombre ? `${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}` : '-'}</td>
-                <td style="color: #f44336;">${reg.color4_nombre ? `${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}` : '-'}</td>
+                <td style="color: #60a5fa; font-weight: 600;">${(reg.cyan || 0).toFixed(1)}</td>
+                <td style="color: #f472b6; font-weight: 600;">${(reg.magenta || 0).toFixed(1)}</td>
+                <td style="color: #fbbf24; font-weight: 600;">${(reg.yellow || 0).toFixed(1)}</td>
+                <td style="color: #9ca3af; font-weight: 600;">${(reg.black || 0).toFixed(1)}</td>
+                <td style="color: #40e0d0; font-weight:600;">${reg.color1_nombre}:${(reg.color1_valor || 0).toFixed(1)}</td>
+                <td style="color: #ffa500; font-weight:600;">${reg.color2_nombre}:${(reg.color2_valor || 0).toFixed(1)}</td>
+                <td style="color: #ffff00; font-weight:600; background:rgba(0,0,0,0.2);">${reg.color3_nombre}:${(reg.color3_valor || 0).toFixed(1)}</td>
+                <td style="color: #ff69b4; font-weight:600;">${reg.color4_nombre}:${(reg.color4_valor || 0).toFixed(1)}</td>
                 <td><span style="background: #9c27b0; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${plotterText}</span></td>
-                <td>${reg.adhesivo}</td>
-                <td>${reg.temperatura_monti.toFixed(1)}°</td>
-                <td>${reg.velocidad_monti.toFixed(1)}</td>
-                <td>${reg.temperatura_flat.toFixed(1)}°</td>
-                <td>${reg.tiempo_flat.toFixed(1)}s</td>
+                <td>${reg.adhesivo || '-'}</td>
+                <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
+                <td>${(reg.velocidad_monti || 0).toFixed(1)}</td>
+                <td>${(reg.temperatura_flat || 0).toFixed(1)}°</td>
+                <td>${(reg.tiempo_flat || 0).toFixed(1)}s</td>
                 <td>
                     <div class="action-buttons">
                         <button class="btn-icon edit" onclick="editarRegistro('${reg.id}')" title="Editar">✏️</button>
                         <button class="btn-icon history" onclick="verHistorial('${reg.id}')" title="Historial">📋</button>
-                        <button class="btn-icon print" onclick="imprimirRegistroIndividual('${reg.id}')" title="Imprimir">🖨️</button>
+                        <button class="btn-icon print" onclick="imprimirRegistroIndividual('${reg.id}')" title="Imprimir QR">📱</button>
                         <button class="btn-icon delete" onclick="eliminarRegistro('${reg.id}')" title="Eliminar">🗑️</button>
                     </div>
                     ${reg.observacion ? `<small style="color:#ffd93d; display:block; margin-top:0.3rem;">📝 ${reg.observacion}</small>` : ''}
@@ -209,20 +209,34 @@ function mostrarTabla(registrosMostrar) {
     }).join('');
 }
 
-// ==================== CALENDARIO MENSUAL COMPACTO ====================
+function getProcesoColor(proceso) {
+    const colores = {
+        'DISEÑO': '#9c27b0',
+        'PLOTTER': '#2196f3',
+        'SUBLIMADO': '#ff9800',
+        'FLAT': '#4caf50',
+        'LASER': '#f44336',
+        'BORDADO': '#795548'
+    };
+    return colores[proceso] || '#6b5bff';
+}
+
+// ==================== CALENDARIO MENSUAL ====================
 
 function actualizarCalendarioMensual() {
     const container = document.getElementById('calendarioMensualContainer');
+    
+    if (!container) return;
     
     if (registros.length === 0) {
         container.innerHTML = '<p class="no-data">📅 Sin semanas</p>';
         return;
     }
     
-    // Agrupar por mes
     const mesesMap = new Map();
     
     registros.forEach(reg => {
+        if (!reg.fecha) return;
         const fecha = new Date(reg.fecha);
         const año = fecha.getFullYear();
         const mes = fecha.getMonth();
@@ -241,11 +255,9 @@ function actualizarCalendarioMensual() {
         mesesMap.get(mesKey).semanas.add(reg.semana);
     });
     
-    // Convertir a array y ordenar (más reciente primero)
     const mesesArray = Array.from(mesesMap.entries())
         .sort((a, b) => b[0].localeCompare(a[0]));
     
-    // Agrupar de 3 en 3 meses
     let html = '';
     for (let i = 0; i < mesesArray.length; i += 3) {
         const grupoMeses = mesesArray.slice(i, i + 3);
@@ -293,37 +305,50 @@ window.filtrarPorSemana = (semana) => {
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
     const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha').value = hoy;
-    document.getElementById('fecha').setAttribute('max', hoy); // No permitir fechas futuras
+    const fechaInput = document.getElementById('fecha');
+    if (fechaInput) {
+        fechaInput.value = hoy;
+        fechaInput.setAttribute('max', hoy);
+        fechaInput.addEventListener('change', verificarFechaObservacion);
+    }
     
-    document.getElementById('fecha').addEventListener('change', verificarFechaObservacion);
+    const toggleBtn = document.getElementById('toggleExtrasBtn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleExtras);
+    }
     
-    // Toggle para colores extras
-    document.getElementById('toggleExtrasBtn').addEventListener('click', toggleExtras);
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            currentSearch = e.target.value;
+            actualizarUI();
+            actualizarEstadisticas();
+        });
+    }
     
-    // Evento de búsqueda
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        currentSearch = e.target.value;
-        console.log('Búsqueda actualizada:', currentSearch);
-        actualizarUI();
-        actualizarEstadisticas();
-    });
+    const clearSearch = document.getElementById('clearSearch');
+    if (clearSearch) {
+        clearSearch.addEventListener('click', () => {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) searchInput.value = '';
+            currentSearch = '';
+            actualizarUI();
+            actualizarEstadisticas();
+        });
+    }
     
-    document.getElementById('clearSearch').addEventListener('click', () => {
-        document.getElementById('searchInput').value = '';
-        currentSearch = '';
-        actualizarUI();
-        actualizarEstadisticas();
-    });
-    
-    document.getElementById('limpiarFiltroBtn').addEventListener('click', () => {
-        currentSearch = '';
-        currentSemana = '';
-        document.getElementById('searchInput').value = '';
-        actualizarUI();
-        actualizarEstadisticas();
-        mostrarNotificacion('🧹 Filtros eliminados', 'info');
-    });
+    const limpiarFiltro = document.getElementById('limpiarFiltroBtn');
+    if (limpiarFiltro) {
+        limpiarFiltro.addEventListener('click', () => {
+            currentSearch = '';
+            currentSemana = '';
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) searchInput.value = '';
+            actualizarUI();
+            actualizarEstadisticas();
+            mostrarNotificacion('🧹 Filtros eliminados', 'info');
+        });
+    }
     
     cargarRegistrosLocal();
     configurarEventos();
@@ -335,6 +360,8 @@ function toggleExtras() {
     const extrasContainer = document.getElementById('extrasContainer');
     const toggleBtn = document.getElementById('toggleExtrasBtn');
     
+    if (!extrasContainer || !toggleBtn) return;
+    
     if (extrasContainer.style.display === 'none') {
         extrasContainer.style.display = 'block';
         toggleBtn.innerHTML = '<span>🎨</span> OCULTAR COLORES EXTRAS';
@@ -345,38 +372,65 @@ function toggleExtras() {
 }
 
 function verificarFechaObservacion() {
-    const fechaSeleccionada = document.getElementById('fecha').value;
-    const hoy = new Date().toISOString().split('T')[0];
-    
+    const fechaInput = document.getElementById('fecha');
     const observacionContainer = document.getElementById('observacionContainer');
     const observacionField = document.getElementById('observacion');
     
+    if (!fechaInput || !observacionContainer || !observacionField) return;
+    
+    const fechaSeleccionada = fechaInput.value;
+    const hoy = new Date().toISOString().split('T')[0];
+    
     if (fechaSeleccionada < hoy) {
-        // Fecha anterior: mostrar observación obligatoria
         observacionContainer.style.display = 'block';
         observacionField.required = true;
-        observacionField.setAttribute('required', 'required');
     } else {
-        // Fecha actual o futura (pero no permitimos futuras por el max)
         observacionContainer.style.display = 'none';
         observacionField.required = false;
-        observacionField.removeAttribute('required');
         observacionField.value = '';
     }
 }
 
 function configurarEventos() {
-    document.getElementById('registroForm').addEventListener('submit', guardarRegistro);
-    document.getElementById('cancelEditBtn').addEventListener('click', cancelarEdicion);
+    const registroForm = document.getElementById('registroForm');
+    if (registroForm) {
+        registroForm.addEventListener('submit', guardarRegistro);
+    }
     
-    document.getElementById('exportarDBBtn').addEventListener('click', exportarBaseDatos);
-    document.getElementById('importarDB').addEventListener('change', importarBaseDatos);
-    document.getElementById('imprimirReportesBtn').addEventListener('click', imprimirReportes);
-    document.getElementById('exportarExcelBtn').addEventListener('click', exportarAExcel);
-    document.getElementById('imprimirIndividualBtn').addEventListener('click', imprimirRegistroSeleccionado);
+    const cancelEdit = document.getElementById('cancelEditBtn');
+    if (cancelEdit) {
+        cancelEdit.addEventListener('click', cancelarEdicion);
+    }
+    
+    const exportarDB = document.getElementById('exportarDBBtn');
+    if (exportarDB) {
+        exportarDB.addEventListener('click', exportarBaseDatos);
+    }
+    
+    const importarDB = document.getElementById('importarDB');
+    if (importarDB) {
+        importarDB.addEventListener('change', importarBaseDatos);
+    }
+    
+    const imprimirReportes = document.getElementById('imprimirReportesBtn');
+    if (imprimirReportes) {
+        imprimirReportes.addEventListener('click', imprimirReportesHandler);
+    }
+    
+    const exportarExcel = document.getElementById('exportarExcelBtn');
+    if (exportarExcel) {
+        exportarExcel.addEventListener('click', exportarAExcel);
+    }
+    
+    const imprimirIndividual = document.getElementById('imprimirIndividualBtn');
+    if (imprimirIndividual) {
+        imprimirIndividual.addEventListener('click', () => {
+            abrirModalSeleccionRegistro();
+        });
+    }
     
     const modals = document.querySelectorAll('.modal');
-    document.querySelectorAll('.close-modal').forEach(btn => {
+    document.querySelectorAll('.close-modal, .modal-close, .modal-btn, .cancel-btn, .close-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             modals.forEach(modal => modal.classList.remove('show'));
         });
@@ -392,8 +446,13 @@ function configurarEventos() {
 }
 
 // ==================== EXPORTAR A EXCEL ====================
-
 function exportarAExcel() {
+    if (typeof XLSX === 'undefined') {
+        mostrarNotificacion('❌ Error: Librería XLSX no cargada', 'error');
+        console.error('XLSX no está definido');
+        return;
+    }
+    
     const registrosFiltrados = filtrarRegistrosArray();
     
     if (registrosFiltrados.length === 0) {
@@ -401,71 +460,81 @@ function exportarAExcel() {
         return;
     }
     
-    // Preparar datos para Excel
-    const datosExcel = registrosFiltrados.map(reg => ({
-        'PO': reg.po || '',
-        'Semana': reg.semana,
-        'Fecha': reg.fecha,
-        'Estilo/Deporte': reg.estilo,
-        'Tela': reg.tela,
-        'Cian (C)': reg.cyan || 0,
-        'Magenta (M)': reg.magenta || 0,
-        'Yellow (Y)': reg.yellow || 0,
-        'Black (K)': reg.black || 0,
-        'Color 1': reg.color1_nombre ? `${reg.color1_nombre}: ${reg.color1_valor}` : '',
-        'Color 2': reg.color2_nombre ? `${reg.color2_nombre}: ${reg.color2_valor}` : '',
-        'Color 3': reg.color3_nombre ? `${reg.color3_nombre}: ${reg.color3_valor}` : '',
-        'Color 4': reg.color4_nombre ? `${reg.color4_nombre}: ${reg.color4_valor}` : '',
-        'N° Plotter': reg.numero_plotter || 0,
-        'Plotter Temp': reg.plotter_temp || 0,
-        'Plotter Humedad': reg.plotter_humedad || 0,
-        'Plotter Perfil': reg.plotter_perfil || '',
-        'Adhesivo': reg.adhesivo,
-        'Temp Monti °C': reg.temperatura_monti,
-        'Vel Monti m/min': reg.velocidad_monti,
-        'Temp Flat °C': reg.temperatura_flat,
-        'Tiempo Flat s': reg.tiempo_flat,
-        'Observación': reg.observacion || '',
-        'Versión': reg.version || 1,
-        'Descripción Edición': reg.descripcion_edicion || '',
-        'Creado': new Date(reg.creado).toLocaleString(),
-        'Actualizado': new Date(reg.actualizado).toLocaleString()
-    }));
-    
-    // Crear libro de Excel
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(datosExcel);
-    XLSX.utils.book_append_sheet(wb, ws, 'Registros CONTROL T');
-    
-    // Descargar archivo
-    const fecha = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `CONTROL_T_${fecha}.xlsx`);
-    
-    mostrarNotificacion('📊 Archivo Excel generado', 'success');
+    try {
+        const datosExcel = registrosFiltrados.map(reg => ({
+            'PO': reg.po || '',
+            'Versión': reg.version || 1,
+            'Proceso': reg.proceso || '',
+            'Reemplazo': reg.esReemplazo ? 'Sí' : 'No',
+            'Semana': reg.semana,
+            'Fecha': reg.fecha,
+            'Estilo/Deporte': reg.estilo,
+            'Tela': reg.tela,
+            'Cian (C)': reg.cyan || 0,
+            'Magenta (M)': reg.magenta || 0,
+            'Yellow (Y)': reg.yellow || 0,
+            'Black (K)': reg.black || 0,
+            'Turquesa': reg.color1_valor || 0,
+            'Naranja': reg.color2_valor || 0,
+            'Fluor Yellow': reg.color3_valor || 0,
+            'Fluor Pink': reg.color4_valor || 0,
+            'N° Plotter': reg.numero_plotter || 0,
+            'Plotter Temp': reg.plotter_temp || 0,
+            'Plotter Humedad': reg.plotter_humedad || 0,
+            'Plotter Perfil': reg.plotter_perfil || '',
+            'Adhesivo': reg.adhesivo,
+            'Temp Monti °C': reg.temperatura_monti,
+            'Vel Monti m/min': reg.velocidad_monti,
+            'Temp Flat °C': reg.temperatura_flat,
+            'Tiempo Flat s': reg.tiempo_flat,
+            'Observación': reg.observacion || ''
+        }));
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(datosExcel);
+        XLSX.utils.book_append_sheet(wb, ws, 'Registros ALPHA DB');
+        
+        const fecha = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `ALPHA_DB_${fecha}.xlsx`);
+        
+        mostrarNotificacion('📊 Archivo Excel generado', 'success');
+    } catch (error) {
+        console.error('Error en exportarAExcel:', error);
+        mostrarNotificacion('❌ Error al generar Excel', 'error');
+    }
 }
 
-// ==================== MANEJO DE REGISTROS CON PO Y COLORES EXTRAS ====================
+// ==================== MANEJO DE REGISTROS ====================
 
 function guardarRegistro(e) {
     e.preventDefault();
     
-    const fechaStr = document.getElementById('fecha').value;
+    // Verificar que todos los elementos existen
+    const fechaStr = document.getElementById('fecha')?.value;
+    const po = document.getElementById('po')?.value;
+    const proceso = document.getElementById('proceso')?.value;
+    const estilo = document.getElementById('estilo')?.value;
+    const tela = document.getElementById('tela')?.value;
+    const observacion = document.getElementById('observacion')?.value;
+    
+    if (!fechaStr || !po || !proceso || !estilo || !tela) {
+        mostrarNotificacion('❌ Faltan campos requeridos', 'error');
+        return;
+    }
+    
     const fecha = new Date(fechaStr);
     const semana = obtenerSemana(fecha);
     const editId = document.getElementById('editId').value;
     const ahora = new Date().toISOString();
-    const observacion = document.getElementById('observacion').value;
     
-    // Validar fechas (comparando strings YYYY-MM-DD)
     const hoy = new Date().toISOString().split('T')[0];
     
-    // Validar que si es fecha anterior, tenga observación
+    // Validar fecha anterior con observación
     if (fechaStr < hoy && !observacion) {
         mostrarNotificacion('❌ Debes agregar una observación para fechas anteriores', 'error');
         return;
     }
     
-    // Obtener descripción de edición si existe
     let descripcionEdicion = '';
     if (editId) {
         descripcionEdicion = prompt('📝 Describe brevemente qué cambios realizaste en esta edición:', '');
@@ -473,40 +542,39 @@ function guardarRegistro(e) {
     
     const registroData = {
         id: editId || generarIdUnico(),
-        po: document.getElementById('po').value.toUpperCase() || '',
+        po: po.toUpperCase(),
+        proceso: proceso,
+        esReemplazo: document.getElementById('esReemplazo')?.checked || false,
         semana: semana,
         fecha: fechaStr,
-        estilo: document.getElementById('estilo').value.toUpperCase(),
-        tela: document.getElementById('tela').value.toUpperCase(),
+        estilo: estilo.toUpperCase(),
+        tela: tela.toUpperCase(),
         
-        // CMYK con decimales
-        cyan: parseFloat(document.getElementById('cyan').value) || 0,
-        magenta: parseFloat(document.getElementById('magenta').value) || 0,
-        yellow: parseFloat(document.getElementById('yellow').value) || 0,
-        black: parseFloat(document.getElementById('black').value) || 0,
+        cyan: parseFloat(document.getElementById('cyan')?.value) || 0,
+        magenta: parseFloat(document.getElementById('magenta')?.value) || 0,
+        yellow: parseFloat(document.getElementById('yellow')?.value) || 0,
+        black: parseFloat(document.getElementById('black')?.value) || 0,
         
-        // 4 Colores extras
-        color1_nombre: document.getElementById('color1_nombre').value.toUpperCase() || '',
-        color1_valor: parseFloat(document.getElementById('color1_valor').value) || 0,
-        color2_nombre: document.getElementById('color2_nombre').value.toUpperCase() || '',
-        color2_valor: parseFloat(document.getElementById('color2_valor').value) || 0,
-        color3_nombre: document.getElementById('color3_nombre').value.toUpperCase() || '',
-        color3_valor: parseFloat(document.getElementById('color3_valor').value) || 0,
-        color4_nombre: document.getElementById('color4_nombre').value.toUpperCase() || '',
-        color4_valor: parseFloat(document.getElementById('color4_valor').value) || 0,
+        color1_nombre: 'TURQUESA',
+        color1_valor: parseFloat(document.getElementById('color1_valor')?.value) || 0,
+        color2_nombre: 'NARANJA',
+        color2_valor: parseFloat(document.getElementById('color2_valor')?.value) || 0,
+        color3_nombre: 'FLUOR YELLOW',
+        color3_valor: parseFloat(document.getElementById('color3_valor')?.value) || 0,
+        color4_nombre: 'FLUOR PINK',
+        color4_valor: parseFloat(document.getElementById('color4_valor')?.value) || 0,
         
-        // PLOTTER datos (con nuevo campo número)
-        numero_plotter: parseInt(document.getElementById('numero_plotter').value) || 0,
-        plotter_temp: parseFloat(document.getElementById('plotter_temp').value) || 0,
-        plotter_humedad: parseFloat(document.getElementById('plotter_humedad').value) || 0,
-        plotter_perfil: document.getElementById('plotter_perfil').value.toUpperCase() || '',
+        numero_plotter: parseInt(document.getElementById('numero_plotter')?.value) || 0,
+        plotter_temp: parseFloat(document.getElementById('plotter_temp')?.value) || 0,
+        plotter_humedad: parseFloat(document.getElementById('plotter_humedad')?.value) || 0,
+        plotter_perfil: document.getElementById('plotter_perfil')?.value.toUpperCase() || '',
         
-        adhesivo: document.getElementById('adhesivo').value.toUpperCase(),
+        adhesivo: document.getElementById('adhesivo')?.value.toUpperCase() || '',
         
-        temperatura_monti: parseFloat(document.getElementById('temp_monti').value),
-        velocidad_monti: parseFloat(document.getElementById('vel_monti').value),
-        temperatura_flat: parseFloat(document.getElementById('temp_flat').value),
-        tiempo_flat: parseFloat(document.getElementById('tiempo_flat').value),
+        temperatura_monti: parseFloat(document.getElementById('temp_monti')?.value) || 0,
+        velocidad_monti: parseFloat(document.getElementById('vel_monti')?.value) || 0,
+        temperatura_flat: parseFloat(document.getElementById('temp_flat')?.value) || 0,
+        tiempo_flat: parseFloat(document.getElementById('tiempo_flat')?.value) || 0,
         creado: ahora,
         actualizado: ahora,
         version: 1,
@@ -523,17 +591,29 @@ function guardarRegistro(e) {
                 historialEdiciones[editId] = [];
             }
             
+            // IMPORTANTE: NO guardamos el objeto historial dentro del registro
+            // Solo guardamos la referencia en historialEdiciones aparte
             historialEdiciones[editId].push({
                 fecha: ahora,
                 descripcion: descripcionEdicion || 'Edición sin descripción',
-                anterior: { ...original },
-                nuevo: { ...registroData }
+                anterior: {
+                    po: original.po,
+                    proceso: original.proceso,
+                    esReemplazo: original.esReemplazo,
+                    version: original.version
+                },
+                nuevo: {
+                    po: registroData.po,
+                    proceso: registroData.proceso,
+                    esReemplazo: registroData.esReemplazo,
+                    version: registroData.version
+                }
             });
             
             registroData.creado = original.creado;
             registroData.version = (original.version || 1) + 1;
             registroData.actualizado = ahora;
-            registroData.historial = historialEdiciones[editId];
+            // NO guardamos registroData.historial = historialEdiciones[editId] (esto causa el error circular)
             
             registros[index] = registroData;
             mostrarNotificacion(`✅ Registro editado (versión ${registroData.version})`, 'success');
@@ -544,7 +624,7 @@ function guardarRegistro(e) {
             mostrarNotificacion('📝 Registro con observación guardado', 'info');
         }
         registros.unshift(registroData);
-        mostrarNotificacion('✅ Registro guardado en CONTROL T', 'success');
+        mostrarNotificacion('✅ Registro guardado en ALPHA DB', 'success');
     }
     
     guardarRegistrosLocal();
@@ -561,6 +641,8 @@ function verHistorial(id) {
     const modal = document.getElementById('modalHistorial');
     const container = document.getElementById('historialContainer');
     
+    if (!modal || !container) return;
+    
     let html = '';
     
     if (historial.length === 0) {
@@ -574,36 +656,18 @@ function verHistorial(id) {
                         <span class="historial-version">v${index + 2}</span>
                         ${entry.descripcion ? `<span class="historial-descripcion">📝 ${entry.descripcion}</span>` : ''}
                     </div>
-                    <div class="historial-cambios">
-                        <div class="historial-columna anterior">
-                            <div class="historial-columna-titulo">ANTERIOR</div>
-                            <div class="historial-badges">
-                                <span class="historial-badge po">📦 ${entry.anterior.po || 'N/A'}</span>
-                                <span class="historial-badge cmyk-c">C:${entry.anterior.cyan.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-m">M:${entry.anterior.magenta.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-y">Y:${entry.anterior.yellow.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-k">K:${entry.anterior.black.toFixed(1)}</span>
-                                ${entry.anterior.color1_nombre ? `<span class="historial-badge color1">${entry.anterior.color1_nombre}:${entry.anterior.color1_valor.toFixed(1)}</span>` : ''}
-                                ${entry.anterior.color2_nombre ? `<span class="historial-badge color2">${entry.anterior.color2_nombre}:${entry.anterior.color2_valor.toFixed(1)}</span>` : ''}
-                                ${entry.anterior.color3_nombre ? `<span class="historial-badge color3">${entry.anterior.color3_nombre}:${entry.anterior.color3_valor.toFixed(1)}</span>` : ''}
-                                ${entry.anterior.color4_nombre ? `<span class="historial-badge color4">${entry.anterior.color4_nombre}:${entry.anterior.color4_valor.toFixed(1)}</span>` : ''}
-                                <span class="historial-badge plotter">#${entry.anterior.numero_plotter || 0} ${entry.anterior.plotter_temp.toFixed(1)}°/${entry.anterior.plotter_humedad.toFixed(0)}%</span>
-                            </div>
+                    <div style="margin-top:0.5rem; display: flex; gap: 1rem;">
+                        <div style="flex:1; border-left: 2px solid #ff6b6b; padding-left: 0.5rem;">
+                            <div style="font-size:0.7rem; color:#ff6b6b;">ANTERIOR</div>
+                            <div>PO: ${entry.anterior.po || '-'}</div>
+                            <div>Proceso: ${entry.anterior.proceso || '-'}</div>
+                            <div>Versión: v${entry.anterior.version || 1}</div>
                         </div>
-                        <div class="historial-columna nuevo">
-                            <div class="historial-columna-titulo">NUEVO</div>
-                            <div class="historial-badges">
-                                <span class="historial-badge po">📦 ${entry.nuevo.po || 'N/A'}</span>
-                                <span class="historial-badge cmyk-c">C:${entry.nuevo.cyan.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-m">M:${entry.nuevo.magenta.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-y">Y:${entry.nuevo.yellow.toFixed(1)}</span>
-                                <span class="historial-badge cmyk-k">K:${entry.nuevo.black.toFixed(1)}</span>
-                                ${entry.nuevo.color1_nombre ? `<span class="historial-badge color1">${entry.nuevo.color1_nombre}:${entry.nuevo.color1_valor.toFixed(1)}</span>` : ''}
-                                ${entry.nuevo.color2_nombre ? `<span class="historial-badge color2">${entry.nuevo.color2_nombre}:${entry.nuevo.color2_valor.toFixed(1)}</span>` : ''}
-                                ${entry.nuevo.color3_nombre ? `<span class="historial-badge color3">${entry.nuevo.color3_nombre}:${entry.nuevo.color3_valor.toFixed(1)}</span>` : ''}
-                                ${entry.nuevo.color4_nombre ? `<span class="historial-badge color4">${entry.nuevo.color4_nombre}:${entry.nuevo.color4_valor.toFixed(1)}</span>` : ''}
-                                <span class="historial-badge plotter">#${entry.nuevo.numero_plotter || 0} ${entry.nuevo.plotter_temp.toFixed(1)}°/${entry.nuevo.plotter_humedad.toFixed(0)}%</span>
-                            </div>
+                        <div style="flex:1; border-left: 2px solid #4caf50; padding-left: 0.5rem;">
+                            <div style="font-size:0.7rem; color:#4caf50;">NUEVO</div>
+                            <div>PO: ${entry.nuevo.po || '-'}</div>
+                            <div>Proceso: ${entry.nuevo.proceso || '-'}</div>
+                            <div>Versión: v${entry.nuevo.version || 2}</div>
                         </div>
                     </div>
                 </div>
@@ -611,27 +675,17 @@ function verHistorial(id) {
         }).join('');
     }
     
-    // Versión actual
     html += `
         <div class="historial-item" style="border-color: #ffd93d;">
             <div class="historial-fecha">
                 <span style="color: #ffd93d;">⚡ VERSIÓN ACTUAL ${registro.version}</span>
                 <span>${new Date(registro.actualizado).toLocaleString()}</span>
-                ${registro.descripcion_edicion ? `<span class="historial-descripcion">📝 ${registro.descripcion_edicion}</span>` : ''}
+                ${registro.descripcion_edicion ? `<span>📝 ${registro.descripcion_edicion}</span>` : ''}
             </div>
-            <div class="historial-badges">
-                <span class="historial-badge po">📦 ${registro.po || 'N/A'}</span>
-                <span class="historial-badge cmyk-c">C:${registro.cyan.toFixed(1)}</span>
-                <span class="historial-badge cmyk-m">M:${registro.magenta.toFixed(1)}</span>
-                <span class="historial-badge cmyk-y">Y:${registro.yellow.toFixed(1)}</span>
-                <span class="historial-badge cmyk-k">K:${registro.black.toFixed(1)}</span>
-                ${registro.color1_nombre ? `<span class="historial-badge color1">${registro.color1_nombre}:${registro.color1_valor.toFixed(1)}</span>` : ''}
-                ${registro.color2_nombre ? `<span class="historial-badge color2">${registro.color2_nombre}:${registro.color2_valor.toFixed(1)}</span>` : ''}
-                ${registro.color3_nombre ? `<span class="historial-badge color3">${registro.color3_nombre}:${registro.color3_valor.toFixed(1)}</span>` : ''}
-                ${registro.color4_nombre ? `<span class="historial-badge color4">${registro.color4_nombre}:${registro.color4_valor.toFixed(1)}</span>` : ''}
-                <span class="historial-badge plotter">#${registro.numero_plotter || 0} ${registro.plotter_temp.toFixed(1)}°/${registro.plotter_humedad.toFixed(0)}%</span>
+            <div style="margin-top:0.5rem;">
+                <div>PO: ${registro.po || '-'} | Proceso: ${registro.proceso || '-'}</div>
             </div>
-            ${registro.observacion ? `<div style="margin-top:0.5rem; color:#ffd93d; font-size:0.8rem;">📝 ${registro.observacion}</div>` : ''}
+            ${registro.observacion ? `<div style="margin-top:0.5rem; color:#ffd93d;">📝 ${registro.observacion}</div>` : ''}
         </div>
     `;
     
@@ -641,61 +695,67 @@ function verHistorial(id) {
 
 function editarRegistro(id) {
     const registro = registros.find(r => r.id === id);
-    if (!registro) return;
+    if (!registro) {
+        mostrarNotificacion('❌ Registro no encontrado', 'error');
+        return;
+    }
     
     editandoId = id;
     document.getElementById('editId').value = id;
     
-    document.getElementById('po').value = registro.po || '';
-    document.getElementById('fecha').value = registro.fecha;
-    document.getElementById('estilo').value = registro.estilo;
-    document.getElementById('tela').value = registro.tela;
+    const setValueIfExists = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value !== undefined && value !== null ? value : '';
+    };
     
-    // CMYK
-    document.getElementById('cyan').value = registro.cyan || 0;
-    document.getElementById('magenta').value = registro.magenta || 0;
-    document.getElementById('yellow').value = registro.yellow || 0;
-    document.getElementById('black').value = registro.black || 0;
+    setValueIfExists('po', registro.po || '');
+    setValueIfExists('proceso', registro.proceso || '');
+    const esReemplazo = document.getElementById('esReemplazo');
+    if (esReemplazo) esReemplazo.checked = registro.esReemplazo || false;
+    setValueIfExists('fecha', registro.fecha);
+    setValueIfExists('estilo', registro.estilo);
+    setValueIfExists('tela', registro.tela);
     
-    // Colores extras
-    document.getElementById('color1_nombre').value = registro.color1_nombre || '';
-    document.getElementById('color1_valor').value = registro.color1_valor || 0;
-    document.getElementById('color2_nombre').value = registro.color2_nombre || '';
-    document.getElementById('color2_valor').value = registro.color2_valor || 0;
-    document.getElementById('color3_nombre').value = registro.color3_nombre || '';
-    document.getElementById('color3_valor').value = registro.color3_valor || 0;
-    document.getElementById('color4_nombre').value = registro.color4_nombre || '';
-    document.getElementById('color4_valor').value = registro.color4_valor || 0;
+    setValueIfExists('cyan', registro.cyan);
+    setValueIfExists('magenta', registro.magenta);
+    setValueIfExists('yellow', registro.yellow);
+    setValueIfExists('black', registro.black);
     
-    // PLOTTER datos (incluyendo número)
-    document.getElementById('numero_plotter').value = registro.numero_plotter || 0;
-    document.getElementById('plotter_temp').value = registro.plotter_temp || 0;
-    document.getElementById('plotter_humedad').value = registro.plotter_humedad || 0;
-    document.getElementById('plotter_perfil').value = registro.plotter_perfil || '';
+    setValueIfExists('color1_valor', registro.color1_valor);
+    setValueIfExists('color2_valor', registro.color2_valor);
+    setValueIfExists('color3_valor', registro.color3_valor);
+    setValueIfExists('color4_valor', registro.color4_valor);
     
-    document.getElementById('adhesivo').value = registro.adhesivo;
-    document.getElementById('temp_monti').value = registro.temperatura_monti;
-    document.getElementById('vel_monti').value = registro.velocidad_monti;
-    document.getElementById('temp_flat').value = registro.temperatura_flat;
-    document.getElementById('tiempo_flat').value = registro.tiempo_flat;
+    setValueIfExists('numero_plotter', registro.numero_plotter);
+    setValueIfExists('plotter_temp', registro.plotter_temp);
+    setValueIfExists('plotter_humedad', registro.plotter_humedad);
+    setValueIfExists('plotter_perfil', registro.plotter_perfil);
+    
+    setValueIfExists('adhesivo', registro.adhesivo);
+    setValueIfExists('temp_monti', registro.temperatura_monti);
+    setValueIfExists('vel_monti', registro.velocidad_monti);
+    setValueIfExists('temp_flat', registro.temperatura_flat);
+    setValueIfExists('tiempo_flat', registro.tiempo_flat);
     
     verificarFechaObservacion();
     if (registro.observacion) {
-        document.getElementById('observacion').value = registro.observacion;
+        setValueIfExists('observacion', registro.observacion);
     }
     
-    // Si tiene colores extras, mostrar el contenedor
-    if (registro.color1_nombre || registro.color2_nombre || registro.color3_nombre || registro.color4_nombre) {
-        document.getElementById('extrasContainer').style.display = 'block';
-        document.getElementById('toggleExtrasBtn').innerHTML = '<span>🎨</span> OCULTAR COLORES EXTRAS';
+    const formTitle = document.getElementById('formTitle');
+    if (formTitle) formTitle.innerHTML = '✏️ EDITANDO REGISTRO';
+    
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.innerHTML = '<span>✏️</span> ACTUALIZAR';
+    
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) cancelEditBtn.style.display = 'block';
+    
+    const formSection = document.querySelector('.form-section');
+    if (formSection) {
+        formSection.classList.add('edit-mode');
+        formSection.scrollIntoView({ behavior: 'smooth' });
     }
-    
-    document.getElementById('formTitle').innerHTML = '✏️ EDITANDO REGISTRO';
-    document.getElementById('submitBtn').innerHTML = '<span>✏️</span> ACTUALIZAR';
-    document.getElementById('cancelEditBtn').style.display = 'block';
-    document.querySelector('.form-section').classList.add('edit-mode');
-    
-    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
 }
 
 function cancelarEdicion() {
@@ -708,20 +768,33 @@ function resetFormulario() {
     document.getElementById('editId').value = '';
     document.getElementById('registroForm').reset();
     const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha').value = hoy;
-    document.getElementById('observacionContainer').style.display = 'none';
-    document.getElementById('observacion').removeAttribute('required');
-    document.getElementById('extrasContainer').style.display = 'none';
-    document.getElementById('toggleExtrasBtn').innerHTML = '<span>🎨</span> MOSTRAR COLORES EXTRAS';
+    const fechaInput = document.getElementById('fecha');
+    if (fechaInput) fechaInput.value = hoy;
     
-    document.getElementById('formTitle').innerHTML = '➕ NUEVO REGISTRO';
-    document.getElementById('submitBtn').innerHTML = '<span>💾</span> GUARDAR';
-    document.getElementById('cancelEditBtn').style.display = 'none';
-    document.querySelector('.form-section').classList.remove('edit-mode');
+    const observacionContainer = document.getElementById('observacionContainer');
+    if (observacionContainer) observacionContainer.style.display = 'none';
+    
+    const observacionField = document.getElementById('observacion');
+    if (observacionField) {
+        observacionField.required = false;
+        observacionField.value = '';
+    }
+    
+    const formTitle = document.getElementById('formTitle');
+    if (formTitle) formTitle.innerHTML = '➕ NUEVO REGISTRO';
+    
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.innerHTML = '<span>💾</span> GUARDAR';
+    
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+    
+    const formSection = document.querySelector('.form-section');
+    if (formSection) formSection.classList.remove('edit-mode');
 }
 
 function eliminarRegistro(id) {
-    if (confirm('¿Eliminar este registro de CONTROL T?')) {
+    if (confirm('¿Eliminar este registro de ALPHA DB?')) {
         registros = registros.filter(r => r.id !== id);
         delete historialEdiciones[id];
         guardarRegistrosLocal();
@@ -739,7 +812,7 @@ function eliminarRegistro(id) {
 // ==================== ALMACENAMIENTO ====================
 
 function cargarRegistrosLocal() {
-    const datosGuardados = localStorage.getItem('control_t_registros_v7');
+    const datosGuardados = localStorage.getItem('alpha_db_registros_v8');
     if (datosGuardados) {
         try {
             const data = JSON.parse(datosGuardados);
@@ -759,185 +832,91 @@ function cargarRegistrosLocal() {
 function generarDatosEjemplo() {
     const ejemplos = [];
     
-    // Datos realistas para demostración
-    const pos = [
-        'PO-2401-001', 'PO-2401-002', 'PO-2402-015', 'PO-2402-023', 'PO-2403-008',
-        'PO-2403-012', 'PO-2404-031', 'PO-2404-045', 'PO-2405-017', 'PO-2405-022',
-        'PO-2406-003', 'PO-2406-018', 'PO-2407-009', 'PO-2407-034', 'PO-2408-011'
-    ];
-    
-    const estilos = [
-        'LIBRE', 'MARIPOSA', 'PECHO', 'ESPALDA', 'COMBINADO',
-        'MEDLEY 200M', 'RELEVO 4X100', 'LIBRE JUVENIL', 'MARIPOSA INFANTIL', 'PECHO MASTER',
-        'ESPALDA JUVENIL', 'COMBINADO MASTER', 'LIBRE MASTER', 'MARIPOSA JUVENIL', 'RELEVO MIXTO'
-    ];
-    
-    const telas = [
-        'ALGODÓN 100%', 'POLIÉSTER RECICLADO', 'NYLON TECNICO', 'LYCRA POWER', 'SPANDEX PRO',
-        'ALGODÓN/POLIÉSTER 60/40', 'NYLON/SPANDEX 80/20', 'MICROFIBRA', 'PIQUE', 'JERSEY',
-        'SUPLEX', 'COOLMAX', 'THERMAL', 'WINDPROOF', 'AQUABLOCK'
-    ];
-    
-    const adhesivos = [
-        'ST-100', 'ST-200', 'HT-45', 'HT-60', 'LT-30',
-        'LT-50', 'XTREME 100', 'XTREME 200', 'PRO 300', 'PRO 400',
-        'FLEX 50', 'FLEX 75', 'SOFT 30', 'SOFT 50', 'HARD 80'
-    ];
-    
-    const perfiles = [
-        'BAJO CONSUMO', 'MEDIO ESTÁNDAR', 'ALTO RENDIMIENTO', 'CRÍTICO', 'PREMIUM',
-        'PROFESIONAL', 'COMPETICIÓN', 'ENTRENAMIENTO', 'RECREATIVO', 'ÉLITE'
-    ];
-    
-    const coloresExtras = [
-        ['DORADO METÁLICO', 'PLATEADO BRILLO', 'BRONCE ANTIGUO', 'COBRE MODERNO'],
-        ['AZUL ELÉCTRICO', 'VERDE NEÓN', 'ROJO FUEGO', 'AMARILLO SOL'],
-        ['MORADO REAL', 'TURQUESA MARINA', 'CORAL VIBRANTE', 'ESMERALDA'],
-        ['NEGRO MATE', 'BLANCO PERLA', 'GRIS CARBÓN', 'BEIGE CLARO'],
-        ['ROSA CHICLE', 'LILA SUAVE', 'MELOCOTÓN', 'MENTA']
-    ];
-    
+    const pos = ['PO-2401-001', 'PO-2401-002', 'PO-2402-015', 'PO-2402-023'];
+    const procesos = ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'];
+    const estilos = ['LIBRE', 'MARIPOSA', 'PECHO', 'ESPALDA'];
+    const telas = ['ALGODÓN', 'POLIÉSTER', 'NYLON'];
     const ahora = new Date().toISOString();
     const hoy = new Date().toISOString().split('T')[0];
     
-    // Generar 30 registros de ejemplo (todos con fecha <= hoy)
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 15; i++) {
         const fecha = new Date();
-        // Fechas distribuidas en los últimos 60 días (siempre <= hoy)
-        fecha.setDate(fecha.getDate() - (i * 2) - Math.floor(Math.random() * 5));
+        fecha.setDate(fecha.getDate() - i * 2);
         const fechaStr = fecha.toISOString().split('T')[0];
-        
-        // Algunos registros con fechas anteriores para mostrar observaciones
-        const esFechaAnterior = fechaStr < hoy;
-        let observacion = null;
-        if (esFechaAnterior) {
-            const razones = [
-                'Ajuste por producción retrasada',
-                'Registro retroactivo por control de calidad',
-                'Corrección de fecha por error administrativo',
-                'Registro de muestra de laboratorio',
-                'Prueba de prototipo'
-            ];
-            observacion = razones[Math.floor(Math.random() * razones.length)];
-        }
-        
-        // Seleccionar colores extras aleatorios (algunos registros tienen, otros no)
-        const extraIndex = Math.floor(Math.random() * coloresExtras.length);
-        const tieneExtras = i % 3 === 0; // 1 de cada 3 tiene colores extras
-        
-        // Valores CMYK con decimales
-        const cyan = Math.random() * 100;
-        const magenta = Math.random() * 100;
-        const yellow = Math.random() * 100;
-        const black = Math.random() * 100;
-        
-        // Valores de plotter
-        const plotterTemp = 18 + Math.random() * 15;
-        const plotterHum = 35 + Math.random() * 25;
-        const numeroPlotter = Math.floor(Math.random() * 10) + 1;
         
         ejemplos.push({
             id: generarIdUnico(),
-            po: i % 2 === 0 ? pos[Math.floor(Math.random() * pos.length)] : '', // La mitad tienen PO
+            po: pos[Math.floor(Math.random() * pos.length)],
+            proceso: procesos[Math.floor(Math.random() * procesos.length)],
+            esReemplazo: Math.random() > 0.7,
             semana: obtenerSemana(fecha),
             fecha: fechaStr,
             estilo: estilos[Math.floor(Math.random() * estilos.length)],
             tela: telas[Math.floor(Math.random() * telas.length)],
-            
-            // CMYK con decimales
-            cyan: parseFloat(cyan.toFixed(1)),
-            magenta: parseFloat(magenta.toFixed(1)),
-            yellow: parseFloat(yellow.toFixed(1)),
-            black: parseFloat(black.toFixed(1)),
-            
-            // Colores extras (solo algunos registros)
-            color1_nombre: tieneExtras ? coloresExtras[extraIndex][0] : '',
-            color1_valor: tieneExtras ? parseFloat((Math.random() * 100).toFixed(1)) : 0,
-            color2_nombre: tieneExtras ? coloresExtras[extraIndex][1] : '',
-            color2_valor: tieneExtras ? parseFloat((Math.random() * 100).toFixed(1)) : 0,
-            color3_nombre: tieneExtras ? coloresExtras[extraIndex][2] : '',
-            color3_valor: tieneExtras ? parseFloat((Math.random() * 100).toFixed(1)) : 0,
-            color4_nombre: tieneExtras ? coloresExtras[extraIndex][3] : '',
-            color4_valor: tieneExtras ? parseFloat((Math.random() * 100).toFixed(1)) : 0,
-            
-            // PLOTTER datos
-            numero_plotter: numeroPlotter,
-            plotter_temp: parseFloat(plotterTemp.toFixed(1)),
-            plotter_humedad: parseFloat(plotterHum.toFixed(0)),
-            plotter_perfil: perfiles[Math.floor(Math.random() * perfiles.length)],
-            
-            adhesivo: adhesivos[Math.floor(Math.random() * adhesivos.length)],
-            temperatura_monti: parseFloat((170 + Math.random() * 30).toFixed(1)),
-            velocidad_monti: parseFloat((2 + Math.random() * 3).toFixed(1)),
-            temperatura_flat: parseFloat((150 + Math.random() * 30).toFixed(1)),
-            tiempo_flat: parseFloat((10 + Math.random() * 15).toFixed(1)),
+            cyan: parseFloat((Math.random() * 100).toFixed(1)),
+            magenta: parseFloat((Math.random() * 100).toFixed(1)),
+            yellow: parseFloat((Math.random() * 100).toFixed(1)),
+            black: parseFloat((Math.random() * 100).toFixed(1)),
+            color1_nombre: 'TURQUESA',
+            color1_valor: parseFloat((Math.random() * 100).toFixed(1)),
+            color2_nombre: 'NARANJA',
+            color2_valor: parseFloat((Math.random() * 100).toFixed(1)),
+            color3_nombre: 'FLUOR YELLOW',
+            color3_valor: parseFloat((Math.random() * 100).toFixed(1)),
+            color4_nombre: 'FLUOR PINK',
+            color4_valor: parseFloat((Math.random() * 100).toFixed(1)),
+            numero_plotter: Math.floor(Math.random() * 5),
+            plotter_temp: parseFloat((20 + Math.random() * 10).toFixed(1)),
+            plotter_humedad: parseFloat((40 + Math.random() * 20).toFixed(0)),
+            plotter_perfil: ['BAJO', 'MEDIO', 'ALTO'][Math.floor(Math.random() * 3)],
+            adhesivo: 'TIPO A',
+            temperatura_monti: parseFloat((170 + Math.random() * 20).toFixed(1)),
+            velocidad_monti: parseFloat((2 + Math.random() * 2).toFixed(1)),
+            temperatura_flat: parseFloat((150 + Math.random() * 20).toFixed(1)),
+            tiempo_flat: parseFloat((10 + Math.random() * 10).toFixed(1)),
             creado: ahora,
             actualizado: ahora,
             version: 1,
-            observacion: observacion
+            observacion: fechaStr < hoy ? 'Registro retroactivo' : null
         });
-    }
-    
-    // Ordenar por fecha (más reciente primero)
-    ejemplos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    
-    // Crear historial para algunos registros
-    for (let i = 0; i < 5; i++) {
-        const id = ejemplos[i].id;
-        const fechaEdit = new Date();
-        fechaEdit.setDate(fechaEdit.getDate() - Math.floor(Math.random() * 10));
-        
-        const descripciones = [
-            'Corrección de temperatura',
-            'Ajuste de CMYK por muestrario',
-            'Actualización de PO',
-            'Cambio en perfil de plotter',
-            'Revisión de adhesivo'
-        ];
-        
-        historialEdiciones[id] = [
-            {
-                fecha: fechaEdit.toISOString(),
-                descripcion: descripciones[Math.floor(Math.random() * descripciones.length)],
-                anterior: { ...ejemplos[i] },
-                nuevo: { 
-                    ...ejemplos[i], 
-                    version: 2,
-                    temperatura_monti: ejemplos[i].temperatura_monti + 2.5,
-                    cyan: ejemplos[i].cyan + 5.2,
-                    magenta: ejemplos[i].magenta - 3.8,
-                    descripcion_edicion: descripciones[Math.floor(Math.random() * descripciones.length)]
-                }
-            }
-        ];
-        
-        ejemplos[i].version = 2;
-        ejemplos[i].actualizado = fechaEdit.toISOString();
-        ejemplos[i].descripcion_edicion = descripciones[Math.floor(Math.random() * descripciones.length)];
-        ejemplos[i].cyan = ejemplos[i].cyan + 5.2;
-        ejemplos[i].magenta = ejemplos[i].magenta - 3.8;
     }
     
     return ejemplos;
 }
 
 function guardarRegistrosLocal() {
-    const dataToSave = {
-        registros: registros,
-        historial: historialEdiciones
-    };
-    localStorage.setItem('control_t_registros_v7', JSON.stringify(dataToSave));
+    try {
+        // IMPORTANTE: Guardamos registros e historial por separado
+        // Los registros NO deben contener el historial para evitar círculos
+        const registrosParaGuardar = registros.map(reg => {
+            // Crear una copia sin la propiedad historial si existe
+            const { historial, ...regSinHistorial } = reg;
+            return regSinHistorial;
+        });
+        
+        const dataToSave = {
+            registros: registrosParaGuardar,
+            historial: historialEdiciones
+        };
+        localStorage.setItem('alpha_db_registros_v8', JSON.stringify(dataToSave));
+    } catch (error) {
+        console.error('Error al guardar en localStorage:', error);
+        mostrarNotificacion('❌ Error al guardar datos localmente', 'error');
+    }
 }
-
-// ==================== EXPORTAR/IMPORTAR DB ====================
 
 function exportarBaseDatos() {
     try {
+        const registrosParaExportar = registros.map(reg => {
+            const { historial, ...regSinHistorial } = reg;
+            return regSinHistorial;
+        });
+        
         const dataToExport = {
             sistema: SISTEMA_NOMBRE,
             version: DB_VERSION,
             fecha_exportacion: new Date().toISOString(),
-            registros: registros,
+            registros: registrosParaExportar,
             historial: historialEdiciones,
             total_registros: registros.length
         };
@@ -948,13 +927,13 @@ function exportarBaseDatos() {
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `CONTROL_T_${new Date().toISOString().split('T')[0]}${DB_EXTENSION}`;
+        a.download = `ALPHA_DB_${new Date().toISOString().split('T')[0]}${DB_EXTENSION}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        mostrarNotificacion('💾 Base de datos CONTROL T guardada');
+        mostrarNotificacion('💾 Base de datos ALPHA DB guardada');
     } catch (error) {
         console.error('Error:', error);
         mostrarNotificacion('❌ Error al guardar', 'error');
@@ -966,7 +945,7 @@ function importarBaseDatos(event) {
     if (!file) return;
     
     if (!file.name.endsWith(DB_EXTENSION)) {
-        mostrarNotificacion('❌ Debe ser archivo .t', 'error');
+        mostrarNotificacion('❌ Debe ser archivo .adb', 'error');
         return;
     }
     
@@ -980,7 +959,7 @@ function importarBaseDatos(event) {
                 throw new Error('Estructura inválida');
             }
             
-            if (confirm(`¿Cargar ${importedData.registros.length} registros en CONTROL T?`)) {
+            if (confirm(`¿Cargar ${importedData.registros.length} registros en ALPHA DB?`)) {
                 registros = importedData.registros;
                 historialEdiciones = importedData.historial || {};
                 guardarRegistrosLocal();
@@ -1001,7 +980,7 @@ function importarBaseDatos(event) {
 
 // ==================== FUNCIONES DE IMPRESIÓN ====================
 
-function imprimirReportes() {
+function imprimirReportesHandler() {
     const registrosFiltrados = filtrarRegistrosArray();
     
     if (registrosFiltrados.length === 0) {
@@ -1015,25 +994,27 @@ function imprimirReportes() {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>CONTROL T - Reporte</title>
+            <title>ALPHA DB - Reporte</title>
             <style>
                 body { font-family: Arial; margin: 0.5in; background: white; color: black; }
-                h1 { color: #000; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 9px; }
-                th { background: #000; color: white; padding: 4px; text-align: left; }
-                td { padding: 3px; border-bottom: 1px solid #000; }
-                .total { margin-top: 20px; font-weight: bold; }
-                .po { font-weight: bold; }
+                h1 { color: #000; text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
+                th { background: #000; color: white; padding: 6px; text-align: left; }
+                td { padding: 4px; border-bottom: 1px solid #000; }
+                .total { margin-top: 20px; font-weight: bold; text-align: right; }
             </style>
         </head>
         <body>
-            <h1>⚡ CONTROL T - REPORTE COMPLETO</h1>
+            <h1>⚡ ALPHA DB - REPORTE COMPLETO</h1>
             <p>Fecha de impresión: ${new Date().toLocaleString()}</p>
             <p>Total de registros: ${registrosFiltrados.length}</p>
             <table>
                 <thead>
                     <tr>
                         <th>PO</th>
+                        <th>V</th>
+                        <th>Proceso</th>
+                        <th>Reemp</th>
                         <th>Sem</th>
                         <th>Fecha</th>
                         <th>Estilo</th>
@@ -1042,11 +1023,10 @@ function imprimirReportes() {
                         <th>M</th>
                         <th>Y</th>
                         <th>K</th>
-                        <th>C1</th>
-                        <th>C2</th>
-                        <th>C3</th>
-                        <th>C4</th>
-                        <th>N°Plot</th>
+                        <th>Turq</th>
+                        <th>Nar</th>
+                        <th>F.Y</th>
+                        <th>F.P</th>
                         <th>Plotter</th>
                         <th>Adh</th>
                         <th>T°M</th>
@@ -1063,33 +1043,30 @@ function imprimirReportes() {
             `${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
             '-';
         
-        const color1 = reg.color1_nombre ? `${reg.color1_nombre}:${reg.color1_valor.toFixed(1)}` : '-';
-        const color2 = reg.color2_nombre ? `${reg.color2_nombre}:${reg.color2_valor.toFixed(1)}` : '-';
-        const color3 = reg.color3_nombre ? `${reg.color3_nombre}:${reg.color3_valor.toFixed(1)}` : '-';
-        const color4 = reg.color4_nombre ? `${reg.color4_nombre}:${reg.color4_valor.toFixed(1)}` : '-';
-        
         htmlContenido += `
             <tr>
-                <td class="po">${reg.po || '-'}</td>
+                <td>${reg.po || '-'}</td>
+                <td>v${reg.version || 1}</td>
+                <td>${reg.proceso || '-'}</td>
+                <td>${reg.esReemplazo ? 'Sí' : 'No'}</td>
                 <td>${reg.semana}</td>
                 <td>${formatearFecha(reg.fecha)}</td>
                 <td>${reg.estilo}</td>
                 <td>${reg.tela}</td>
-                <td>${reg.cyan.toFixed(1)}</td>
-                <td>${reg.magenta.toFixed(1)}</td>
-                <td>${reg.yellow.toFixed(1)}</td>
-                <td>${reg.black.toFixed(1)}</td>
-                <td>${color1}</td>
-                <td>${color2}</td>
-                <td>${color3}</td>
-                <td>${color4}</td>
-                <td>${reg.numero_plotter || 0}</td>
+                <td>${(reg.cyan || 0).toFixed(1)}</td>
+                <td>${(reg.magenta || 0).toFixed(1)}</td>
+                <td>${(reg.yellow || 0).toFixed(1)}</td>
+                <td>${(reg.black || 0).toFixed(1)}</td>
+                <td>${(reg.color1_valor || 0).toFixed(1)}</td>
+                <td>${(reg.color2_valor || 0).toFixed(1)}</td>
+                <td>${(reg.color3_valor || 0).toFixed(1)}</td>
+                <td>${(reg.color4_valor || 0).toFixed(1)}</td>
                 <td>${plotterText}</td>
-                <td>${reg.adhesivo}</td>
-                <td>${reg.temperatura_monti.toFixed(1)}°</td>
-                <td>${reg.velocidad_monti.toFixed(1)}</td>
-                <td>${reg.temperatura_flat.toFixed(1)}°</td>
-                <td>${reg.tiempo_flat.toFixed(1)}s</td>
+                <td>${reg.adhesivo || '-'}</td>
+                <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
+                <td>${(reg.velocidad_monti || 0).toFixed(1)}</td>
+                <td>${(reg.temperatura_flat || 0).toFixed(1)}°</td>
+                <td>${(reg.tiempo_flat || 0).toFixed(1)}s</td>
             </tr>
         `;
     });
@@ -1109,114 +1086,370 @@ function imprimirReportes() {
 
 function imprimirRegistroIndividual(id) {
     const registro = registros.find(r => r.id === id);
-    if (!registro) return;
+    if (!registro) {
+        mostrarNotificacion('❌ Registro no encontrado', 'error');
+        return;
+    }
+    
+    if (typeof QRCode === 'undefined') {
+        mostrarNotificacion('❌ Error: Librería QR no cargada', 'error');
+        return;
+    }
     
     const ventanaImpresion = window.open('', '_blank');
     
-    const plotterText = registro.plotter_temp ? 
-        `N° ${registro.numero_plotter || 0} - ${registro.plotter_temp.toFixed(1)}°C / ${registro.plotter_humedad.toFixed(0)}%` : 
-        'No registrado';
+    // Datos para QR (resumidos para que no sea muy grande)
+    const datosQR = {
+        id: registro.id,
+        po: registro.po,
+        version: registro.version,
+        proceso: registro.proceso,
+        reemplazo: registro.esReemplazo,
+        fecha: registro.fecha,
+        estilo: registro.estilo,
+        tela: registro.tela,
+        colores: {
+            cyan: registro.cyan,
+            magenta: registro.magenta,
+            yellow: registro.yellow,
+            black: registro.black,
+            turquesa: registro.color1_valor,
+            naranja: registro.color2_valor,
+            fluorYellow: registro.color3_valor,
+            fluorPink: registro.color4_valor
+        },
+        plotter: {
+            num: registro.numero_plotter,
+            temp: registro.plotter_temp,
+            hum: registro.plotter_humedad,
+            perfil: registro.plotter_perfil
+        },
+        monti: {
+            temp: registro.temperatura_monti,
+            vel: registro.velocidad_monti,
+            presion: registro.monti_presion
+        },
+        flat: {
+            temp: registro.temperatura_flat,
+            tiempo: registro.tiempo_flat
+        },
+        adhesivo: registro.adhesivo
+    };
+    
+    const qrData = JSON.stringify(datosQR);
     
     const htmlContenido = `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>CONTROL T - Comprobante</title>
-            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+            <title>ALPHA DB - Etiqueta Textil</title>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
             <style>
-                body { margin: 0; padding: 0.25in; font-family: Arial; background: white; }
-                .comprobante { 
-                    border: 2px solid #000; 
+                body { 
+                    margin: 0; 
+                    padding: 0.25in; 
+                    font-family: 'Arial', sans-serif; 
+                    background: white; 
+                }
+                .etiqueta { 
+                    border: 3px solid #000; 
                     padding: 20px; 
-                    border-radius: 10px;
+                    border-radius: 15px;
                     max-width: 8.5in;
                     margin: 0 auto;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
                 }
-                .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
-                .header h1 { color: #000; margin: 0; }
-                .header h2 { color: #333; margin: 5px 0 0; font-size: 16px; }
-                .barcode-container { text-align: center; margin: 20px 0; padding: 15px 0; border-top: 2px dashed #000; border-bottom: 2px dashed #000; }
-                .barcode-container svg { max-width: 100%; height: auto; }
-                .id-text { text-align: center; font-size: 14px; color: #333; margin-top: 5px; font-family: monospace; }
-                .po-destacado { background: #000; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; display: inline-block; margin: 10px 0; }
-                .detalles { margin: 20px 0; }
-                .fila { display: flex; margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 5px; }
-                .etiqueta { font-weight: bold; width: 40%; color: #000; }
-                .valor { width: 60%; color: #333; }
-                .colores-extras { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 15px 0; }
-                .color-box { padding: 10px; border-radius: 5px; color: white; text-align: center; font-weight: bold; }
-                .footer { text-align: center; border-top: 2px solid #000; padding-top: 10px; font-size: 12px; color: #666; }
-                .version-info { font-size: 10px; color: #999; text-align: right; margin-top: 5px; }
+                .header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center;
+                    border-bottom: 3px solid #000; 
+                    padding-bottom: 15px;
+                    margin-bottom: 20px;
+                }
+                .header h1 { 
+                    margin: 0;
+                    font-size: 28px;
+                    font-weight: 800;
+                    color: #000;
+                }
+                .po-version {
+                    text-align: right;
+                }
+                .po-destacado {
+                    font-size: 32px;
+                    font-weight: 900;
+                    color: #000;
+                    line-height: 1.2;
+                    letter-spacing: 1px;
+                }
+                .version-destacado {
+                    font-size: 24px;
+                    font-weight: 900;
+                    color: #ff0000;
+                    line-height: 1.2;
+                }
+                .info-principal {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 15px;
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #f5f5f5;
+                    border-radius: 10px;
+                }
+                .info-item {
+                    display: flex;
+                    flex-direction: column;
+                }
+                .info-label {
+                    font-size: 12px;
+                    color: #666;
+                    text-transform: uppercase;
+                    font-weight: 600;
+                }
+                .info-value {
+                    font-size: 18px;
+                    font-weight: 700;
+                    color: #000;
+                }
+                .seccion-titulo {
+                    font-size: 16px;
+                    font-weight: 800;
+                    color: #000;
+                    margin: 20px 0 10px 0;
+                    padding-bottom: 5px;
+                    border-bottom: 2px solid #000;
+                    text-transform: uppercase;
+                }
+                .colores-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 10px;
+                    margin: 15px 0;
+                }
+                .color-box {
+                    background: #f0f0f0;
+                    padding: 10px;
+                    border-radius: 8px;
+                    text-align: center;
+                    border: 1px solid #ccc;
+                }
+                .color-nombre {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #333;
+                }
+                .color-valor {
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #000;
+                }
+                .parametros-grid {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 15px;
+                    margin: 15px 0;
+                }
+                .param-box {
+                    background: #f0f0f0;
+                    padding: 12px;
+                    border-radius: 8px;
+                    border-left: 4px solid #000;
+                }
+                .param-titulo {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #666;
+                    text-transform: uppercase;
+                }
+                .param-valor {
+                    font-size: 18px;
+                    font-weight: 700;
+                    color: #000;
+                    margin-top: 5px;
+                }
+                .param-sub {
+                    font-size: 12px;
+                    color: #333;
+                }
+                .footer {
+                    text-align: center;
+                    border-top: 2px solid #000;
+                    padding-top: 15px;
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #666;
+                }
+                .qr-section {
+                    display: flex;
+                    justify-content: center;
+                    margin: 20px 0;
+                }
+                #qrcode {
+                    padding: 15px;
+                    background: white;
+                    border: 2px solid #000;
+                    border-radius: 10px;
+                }
+                .proceso-badge {
+                    display: inline-block;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    margin-right: 10px;
+                }
+                .reemplazo-badge {
+                    background: #ffd93d;
+                    color: black;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                .observacion {
+                    margin-top: 15px;
+                    padding: 10px;
+                    background: #fff3cd;
+                    border-left: 4px solid #ffd93d;
+                    font-style: italic;
+                }
             </style>
         </head>
         <body>
-            <div class="comprobante">
+            <div class="etiqueta">
+                <!-- HEADER con PO y VERSIÓN destacados -->
                 <div class="header">
-                    <h1>⚡ CONTROL T</h1>
-                    <h2>Comprobante de Registro</h2>
+                    <h1>⚡ ALPHA DB</h1>
+                    <div class="po-version">
+                        <div class="po-destacado">${registro.po || 'S/PO'}</div>
+                        <div class="version-destacado">v${registro.version || 1}</div>
+                    </div>
                 </div>
                 
-                ${registro.po ? `<div class="po-destacado">📦 PO: ${registro.po}</div>` : ''}
-                
-                <div class="barcode-container">
-                    <svg id="barcode"></svg>
-                    <div class="id-text">ID: ${registro.id}</div>
+                <!-- Proceso y Reemplazo -->
+                <div style="display: flex; gap: 10px; margin: 10px 0;">
+                    <span class="proceso-badge" style="background: ${getProcesoColor(registro.proceso)};">
+                        ${registro.proceso || 'PROCESO'}
+                    </span>
+                    ${registro.esReemplazo ? '<span class="reemplazo-badge">🔄 REEMPLAZO</span>' : ''}
                 </div>
                 
-                <div class="detalles">
-                    <div class="fila"><span class="etiqueta">Semana:</span> <span class="valor">${registro.semana}</span></div>
-                    <div class="fila"><span class="etiqueta">Fecha:</span> <span class="valor">${formatearFecha(registro.fecha)}</span></div>
-                    <div class="fila"><span class="etiqueta">Estilo/Deporte:</span> <span class="valor">${registro.estilo}</span></div>
-                    <div class="fila"><span class="etiqueta">Tela:</span> <span class="valor">${registro.tela}</span></div>
-                    
-                    <div class="fila"><span class="etiqueta">CMYK:</span> 
-                        <span class="valor">
-                            C:${registro.cyan.toFixed(1)} M:${registro.magenta.toFixed(1)} Y:${registro.yellow.toFixed(1)} K:${registro.black.toFixed(1)}
-                        </span>
+                <!-- Información Principal -->
+                <div class="info-principal">
+                    <div class="info-item">
+                        <span class="info-label">Fecha</span>
+                        <span class="info-value">${formatearFecha(registro.fecha)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Semana</span>
+                        <span class="info-value">${registro.semana}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Estilo/Deporte</span>
+                        <span class="info-value">${registro.estilo}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Tela</span>
+                        <span class="info-value">${registro.tela}</span>
+                    </div>
+                </div>
+                
+                <!-- SECCIÓN COLORES -->
+                <div class="seccion-titulo">🎨 ESPECIFICACIÓN DE COLORES</div>
+                <div class="colores-grid">
+                    <div class="color-box">
+                        <div class="color-nombre">CYAN</div>
+                        <div class="color-valor">${(registro.cyan || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">MAGENTA</div>
+                        <div class="color-valor">${(registro.magenta || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">YELLOW</div>
+                        <div class="color-valor">${(registro.yellow || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">BLACK</div>
+                        <div class="color-valor">${(registro.black || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">${registro.color1_nombre}</div>
+                        <div class="color-valor">${(registro.color1_valor || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">${registro.color2_nombre}</div>
+                        <div class="color-valor">${(registro.color2_valor || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">${registro.color3_nombre}</div>
+                        <div class="color-valor">${(registro.color3_valor || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="color-box">
+                        <div class="color-nombre">${registro.color4_nombre}</div>
+                        <div class="color-valor">${(registro.color4_valor || 0).toFixed(1)}%</div>
+                    </div>
+                </div>
+                
+                <!-- SECCIÓN PARÁMETROS DE PRODUCCIÓN -->
+                <div class="seccion-titulo">⚙️ PARÁMETROS DE PRODUCCIÓN</div>
+                <div class="parametros-grid">
+                    <!-- PLOTTER -->
+                    <div class="param-box">
+                        <div class="param-titulo">🖨️ PLOTTER</div>
+                        <div class="param-valor">#${registro.numero_plotter || 0}</div>
+                        <div class="param-sub">Temp: ${(registro.plotter_temp || 0).toFixed(1)}°C</div>
+                        <div class="param-sub">Humedad: ${(registro.plotter_humedad || 0).toFixed(0)}%</div>
+                        <div class="param-sub">Perfil: ${registro.plotter_perfil || '-'}</div>
                     </div>
                     
-                    ${(registro.color1_nombre || registro.color2_nombre || registro.color3_nombre || registro.color4_nombre) ? `
-                        <div class="colores-extras">
-                            ${registro.color1_nombre ? `<div class="color-box" style="background: #9c27b0;">${registro.color1_nombre}: ${registro.color1_valor.toFixed(1)}</div>` : ''}
-                            ${registro.color2_nombre ? `<div class="color-box" style="background: #ff9800; color: black;">${registro.color2_nombre}: ${registro.color2_valor.toFixed(1)}</div>` : ''}
-                            ${registro.color3_nombre ? `<div class="color-box" style="background: #4caf50;">${registro.color3_nombre}: ${registro.color3_valor.toFixed(1)}</div>` : ''}
-                            ${registro.color4_nombre ? `<div class="color-box" style="background: #f44336;">${registro.color4_nombre}: ${registro.color4_valor.toFixed(1)}</div>` : ''}
-                        </div>
-                    ` : ''}
+                    <!-- MONTI -->
+                    <div class="param-box">
+                        <div class="param-titulo">🔥 MONTI</div>
+                        <div class="param-valor">#${registro.monti_numero || 0}</div>
+                        <div class="param-sub">Temp: ${(registro.temperatura_monti || 0).toFixed(1)}°C</div>
+                        <div class="param-sub">Vel: ${(registro.velocidad_monti || 0).toFixed(1)} m/min</div>
+                        <div class="param-sub">Presión: ${(registro.monti_presion || 0).toFixed(1)} bar</div>
+                    </div>
                     
-                    <div class="fila"><span class="etiqueta">Plotter:</span> <span class="valor">${plotterText}</span></div>
-                    <div class="fila"><span class="etiqueta">Adhesivo:</span> <span class="valor">${registro.adhesivo}</span></div>
-                    <div class="fila"><span class="etiqueta">Monti:</span> <span class="valor">${registro.temperatura_monti.toFixed(1)}°C / ${registro.velocidad_monti.toFixed(1)} m/min</span></div>
-                    <div class="fila"><span class="etiqueta">Flat:</span> <span class="valor">${registro.temperatura_flat.toFixed(1)}°C / ${registro.tiempo_flat.toFixed(1)}s</span></div>
+                    <!-- FLAT -->
+                    <div class="param-box">
+                        <div class="param-titulo">📏 FLAT</div>
+                        <div class="param-valor">Temp: ${(registro.temperatura_flat || 0).toFixed(1)}°C</div>
+                        <div class="param-sub">Tiempo: ${(registro.tiempo_flat || 0).toFixed(1)} s</div>
+                        <div class="param-sub">Adhesivo: ${registro.adhesivo || '-'}</div>
+                    </div>
                 </div>
                 
+                <!-- CÓDIGO QR -->
+                <div class="qr-section">
+                    <div id="qrcode"></div>
+                </div>
+                
+                <!-- OBSERVACIÓN (si existe) -->
                 ${registro.observacion ? `
-                    <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffd93d;">
+                    <div class="observacion">
                         <strong>📝 Observación:</strong> ${registro.observacion}
                     </div>
                 ` : ''}
                 
+                <!-- FOOTER -->
                 <div class="footer">
-                    <p>CONTROL T - Sistema de Gestión de Parámetros</p>
-                    <div>Impreso: ${new Date().toLocaleString()}</div>
-                    <div class="version-info">
-                        Versión: ${registro.version || 1}
-                    </div>
+                    <p><strong>ALPHA DB</strong> - Alpha Data Base | Trazabilidad Textil en Tiempo Real</p>
+                    <div>ID: ${registro.id} | Impreso: ${new Date().toLocaleString()}</div>
                 </div>
             </div>
             
             <script>
-                JsBarcode("#barcode", "${registro.id}", {
-                    format: "CODE128",
-                    width: 2,
-                    height: 50,
-                    displayValue: true,
-                    fontSize: 14,
-                    margin: 10,
-                    lineColor: "#000000"
+                new QRCode(document.getElementById("qrcode"), {
+                    text: ${JSON.stringify(qrData)},
+                    width: 150,
+                    height: 150
                 });
-                
-                window.onload = () => setTimeout(() => window.print(), 500);
+                window.onload = () => setTimeout(() => window.print(), 1000);
             <\/script>
         </body>
         </html>
@@ -1230,12 +1463,13 @@ function abrirModalSeleccionRegistro() {
     const select = document.getElementById('selectRegistroImprimir');
     const modal = document.getElementById('modalImpresion');
     
+    if (!select || !modal) return;
+    
     if (registros.length === 0) {
         select.innerHTML = '<option value="">No hay registros</option>';
     } else {
         select.innerHTML = registros.map(reg => {
-            const poText = reg.po ? ` [${reg.po}]` : '';
-            return `<option value="${reg.id}">Sem ${reg.semana} | ${reg.fecha} | ${reg.estilo}${poText}</option>`;
+            return `<option value="${reg.id}">${reg.po || 'S/PO'} v${reg.version || 1} | ${reg.fecha} | ${reg.estilo}</option>`;
         }).join('');
     }
     
@@ -1244,7 +1478,7 @@ function abrirModalSeleccionRegistro() {
 
 function imprimirRegistroSeleccionado() {
     const select = document.getElementById('selectRegistroImprimir');
-    const id = select.value;
+    const id = select ? select.value : null;
     
     if (id) {
         document.getElementById('modalImpresion').classList.remove('show');
@@ -1260,3 +1494,4 @@ window.verHistorial = verHistorial;
 window.imprimirRegistroIndividual = imprimirRegistroIndividual;
 window.eliminarRegistro = eliminarRegistro;
 window.abrirModalSeleccionRegistro = abrirModalSeleccionRegistro;
+window.getProcesoColor = getProcesoColor;

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha DB - Sistema de Gestión Textil</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Librerías desde CDN confiables -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-top">
+                <div class="logo-container">
+                    <img src="/Users/carlosreyes/Desktop/Alpha DT/logo-Alpha.png" alt="Alpha DB Logo" class="logo-img" onerror="this.style.display='none'">
+                    <h1>⚡ ALPHA DB</h1>
+                    <span class="version">v8.2</span>
+                </div>
+                <div class="header-actions">
+                    <button id="exportarDBBtn" class="btn-secondary">
+                        <span>💾</span> Guardar Local
+                    </button>
+                    <label for="importarDB" class="btn-secondary">
+                        <span>📂</span> Cargar Local
+                        <input type="file" id="importarDB" accept=".adb" hidden>
+                    </label>
+                </div>
+            </div>
+            <p class="subtitle">Alpha Data Base - Trazabilidad Textil en Tiempo Real</p>
+        </header>
+
+        <!-- Formulario -->
+        <section class="form-section">
+            <h2 id="formTitle">➕ NUEVO REGISTRO</h2>
+            <form id="registroForm" class="registro-form">
+                <input type="hidden" id="editId" value="">
+                
+                <!-- Fila 1: Fecha y PO -->
+                <div class="form-row">
+                    <div class="form-group card-group">
+                        <label for="fecha">
+                            <span class="label-icon">📅</span>
+                            <span class="label-text">FECHA</span>
+                        </label>
+                        <input type="date" id="fecha" required class="input-bonito">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="po">
+                            <span class="label-icon">📦</span>
+                            <span class="label-text">PO</span>
+                        </label>
+                        <input type="text" id="po" placeholder="Número de PO" required class="input-bonito">
+                    </div>
+                </div>
+
+                <!-- Fila 2: Estilo/Deporte -->
+                <div class="form-row">
+                    <div class="form-group card-group full-width">
+                        <label for="estilo">
+                            <span class="label-icon">🎯</span>
+                            <span class="label-text">ESTILO / DEPORTE</span>
+                        </label>
+                        <input type="text" id="estilo" required placeholder="Nombre del estilo/deporte" class="input-bonito">
+                    </div>
+                </div>
+
+                <!-- Fila 3: Proceso, Tela y Reemplazo -->
+                <div class="form-row three-col">
+                    <div class="form-group card-group">
+                        <label for="proceso">
+                            <span class="label-icon">⚙️</span>
+                            <span class="label-text">PROCESO</span>
+                        </label>
+                        <select id="proceso" class="select-bonito" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="DISEÑO">🎨 Diseño</option>
+                            <option value="PLOTTER">🖨️ Plotter</option>
+                            <option value="SUBLIMADO">🔥 Sublimado</option>
+                            <option value="FLAT">📏 Flat</option>
+                            <option value="LASER">⚡ Laser</option>
+                            <option value="BORDADO">🧵 Bordado</option>
+                        </select>
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="tela">
+                            <span class="label-icon">🧵</span>
+                            <span class="label-text">TELA</span>
+                        </label>
+                        <input type="text" id="tela" required placeholder="Tipo de tela" class="input-bonito">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="esReemplazo">
+                            <span class="label-icon">🔄</span>
+                            <span class="label-text">REEMPLAZO</span>
+                        </label>
+                        <div class="checkbox-bonito">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="esReemplazo">
+                                <span class="checkbox-custom"></span>
+                                <span class="checkbox-text">Es reemplazo</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Título COLORES -->
+                <div class="section-title-bonito">
+                    <span class="title-icon">🎨</span>
+                    <h3>COLORES</h3>
+                    <span class="title-decoration"></span>
+                </div>
+
+                <!-- Fila 4: CMYK -->
+                <div class="form-row cuatro-col">
+                    <div class="form-group card-group color-card">
+                        <label for="cyan">
+                            <span class="label-icon" style="color: #60a5fa;">🟦</span>
+                            <span class="label-text">CYAN</span>
+                        </label>
+                        <input type="number" id="cyan" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="magenta">
+                            <span class="label-icon" style="color: #f472b6;">🟪</span>
+                            <span class="label-text">MAGENTA</span>
+                        </label>
+                        <input type="number" id="magenta" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="yellow">
+                            <span class="label-icon" style="color: #fbbf24;">🟨</span>
+                            <span class="label-text">AMARILLO</span>
+                        </label>
+                        <input type="number" id="yellow" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="black">
+                            <span class="label-icon" style="color: #9ca3af;">⬛</span>
+                            <span class="label-text">NEGRO</span>
+                        </label>
+                        <input type="number" id="black" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                </div>
+
+                <!-- Fila 5: Colores extras (con nombres fijos) -->
+                <div class="form-row cuatro-col">
+                    <div class="form-group card-group color-card">
+                        <label for="color1_valor">
+                            <span class="label-icon" style="color: #40e0d0;">🟦</span>
+                            <span class="label-text">TURQUESA</span>
+                        </label>
+                        <input type="hidden" id="color1_nombre" value="TURQUESA">
+                        <input type="number" id="color1_valor" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="color2_valor">
+                            <span class="label-icon" style="color: #ffa500;">🟧</span>
+                            <span class="label-text">NARANJA</span>
+                        </label>
+                        <input type="hidden" id="color2_nombre" value="NARANJA">
+                        <input type="number" id="color2_valor" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="color3_valor">
+                            <span class="label-icon" style="color: #ffff00;">🟡</span>
+                            <span class="label-text">FLUOR YELLOW</span>
+                        </label>
+                        <input type="hidden" id="color3_nombre" value="FLUOR YELLOW">
+                        <input type="number" id="color3_valor" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                    <div class="form-group card-group color-card">
+                        <label for="color4_valor">
+                            <span class="label-icon" style="color: #ff69b4;">🟣</span>
+                            <span class="label-text">FLUOR PINK</span>
+                        </label>
+                        <input type="hidden" id="color4_nombre" value="FLUOR PINK">
+                        <input type="number" id="color4_valor" step="0.1" min="0" max="100" placeholder="0-100%" class="input-color">
+                    </div>
+                </div>
+
+                <!-- Título PLOTTER -->
+                <div class="section-title-bonito">
+                    <span class="title-icon">🖨️</span>
+                    <h3>PLOTTER</h3>
+                    <span class="title-decoration"></span>
+                </div>
+
+                <!-- Fila 6: Plotter -->
+                <div class="form-row cuatro-col">
+                    <div class="form-group card-group">
+                        <label for="numero_plotter">
+                            <span class="label-icon">🔢</span>
+                            <span class="label-text">N° PLOTTER</span>
+                        </label>
+                        <input type="number" id="numero_plotter" step="1" min="0" placeholder="#" class="input-bonito input-plotter">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="plotter_temp">
+                            <span class="label-icon">🌡️</span>
+                            <span class="label-text">TEMP. AMBIENTE</span>
+                        </label>
+                        <input type="number" id="plotter_temp" step="0.1" placeholder="°C" class="input-bonito input-plotter">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="plotter_humedad">
+                            <span class="label-icon">💧</span>
+                            <span class="label-text">HUMEDAD</span>
+                        </label>
+                        <input type="number" id="plotter_humedad" step="0.1" placeholder="%" class="input-bonito input-plotter">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="plotter_perfil">
+                            <span class="label-icon">📋</span>
+                            <span class="label-text">PERFIL</span>
+                        </label>
+                        <input type="text" id="plotter_perfil" placeholder="Perfil" class="input-bonito input-plotter">
+                    </div>
+                </div>
+
+                <!-- Título SUBLIMADO -->
+                <div class="section-title-bonito">
+                    <span class="title-icon">🔥</span>
+                    <h3>SUBLIMADO</h3>
+                    <span class="title-decoration"></span>
+                </div>
+
+                <!-- Fila 7: Monti -->
+                <div class="form-row cuatro-col">
+                    <div class="form-group card-group">
+                        <label for="monti_numero">
+                            <span class="label-icon">🔢</span>
+                            <span class="label-text">N° MONTI</span>
+                        </label>
+                        <input type="number" id="monti_numero" step="1" min="0" placeholder="#" class="input-bonito input-monti">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="temp_monti">
+                            <span class="label-icon">🌡️</span>
+                            <span class="label-text">TEMP. MONTI</span>
+                        </label>
+                        <input type="number" id="temp_monti" step="0.1" required placeholder="°C" class="input-bonito input-monti">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="vel_monti">
+                            <span class="label-icon">⚡</span>
+                            <span class="label-text">VELOCIDAD</span>
+                        </label>
+                        <input type="number" id="vel_monti" step="0.1" required placeholder="m/min" class="input-bonito input-monti">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="monti_presion">
+                            <span class="label-icon">🔄</span>
+                            <span class="label-text">RODO PRESIÓN</span>
+                        </label>
+                        <input type="number" id="monti_presion" step="0.1" placeholder="bar" class="input-bonito input-monti">
+                    </div>
+                </div>
+
+                <!-- Fila 8: Flat + Guardar -->
+                <div class="form-row flat-row">
+                    <div class="form-group card-group">
+                        <label for="temp_flat">
+                            <span class="label-icon">📏</span>
+                            <span class="label-text">TEMP. FLAT</span>
+                        </label>
+                        <input type="number" id="temp_flat" step="0.1" required placeholder="°C" class="input-bonito input-flat">
+                    </div>
+                    <div class="form-group card-group">
+                        <label for="tiempo_flat">
+                            <span class="label-icon">⏱️</span>
+                            <span class="label-text">TIEMPO FLAT</span>
+                        </label>
+                        <input type="number" id="tiempo_flat" step="0.1" required placeholder="seg" class="input-bonito input-flat">
+                    </div>
+                    <div class="form-group card-group button-group">
+                        <button type="submit" id="submitBtn" class="btn-primary btn-guardar-bonito">
+                            <span>💾</span> GUARDAR REGISTRO
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Botón Cancelar Edición -->
+                <div class="form-row">
+                    <button type="button" id="cancelEditBtn" class="btn-secondary" style="display: none;">
+                        <span>✕</span> CANCELAR EDICIÓN
+                    </button>
+                </div>
+
+                <!-- Observación (fecha anterior) -->
+                <div id="observacionContainer" class="observacion-container" style="display: none;">
+                    <label for="observacion">
+                        <span class="label-icon">📝</span>
+                        <span class="label-text">Observación (fecha anterior)</span>
+                    </label>
+                    <textarea id="observacion" rows="2" placeholder="Explica por qué se registra con fecha anterior..."></textarea>
+                </div>
+            </form>
+        </section>
+
+        <!-- Filtros y Calendario -->
+        <section class="filters-section">
+            <div class="filters-header">
+                <h2>🔍 BÚSQUEDA Y FILTROS</h2>
+            </div>
+            
+            <div class="filters-grid">
+                <!-- Calendario -->
+                <div class="calendario-mensual">
+                    <div class="calendario-header">
+                        <h3>📅 CALENDARIO DE SEMANAS</h3>
+                        <button id="limpiarFiltroBtn" class="btn-clear-filters">✕ LIMPIAR</button>
+                    </div>
+                    <div id="calendarioMensualContainer" class="meses-grid">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                </div>
+                
+                <!-- Panel derecho -->
+                <div class="filters-right-panel">
+                    <!-- Buscador -->
+                    <div class="search-box-container">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="searchInput" placeholder="Buscar por PO, estilo, tela, proceso...">
+                            <button id="clearSearch" class="btn-clear">✕</button>
+                        </div>
+                        <div class="search-hint">
+                            <span class="hint-chip"><i>📦</i> PO</span>
+                            <span class="hint-chip"><i>🎯</i> Estilo</span>
+                            <span class="hint-chip"><i>🧵</i> Tela</span>
+                            <span class="hint-chip"><i>🎨</i> Color</span>
+                            <span class="hint-chip"><i>⚙️</i> Proceso</span>
+                            <span class="hint-chip"><i>🔄</i> Reemplazo</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Botones de acción (3 botones) -->
+                    <div class="filter-buttons three-buttons">
+                        <button id="imprimirReportesBtn" class="filter-btn print">
+                            <span class="btn-icon-large">🖨️</span>
+                            <span class="btn-text">REPORTE</span>
+                        </button>
+                        <button id="exportarExcelBtn" class="filter-btn excel">
+                            <span class="btn-icon-large">📊</span>
+                            <span class="btn-text">EXCEL</span>
+                        </button>
+                        <button id="imprimirIndividualBtn" class="filter-btn qr">
+                            <span class="btn-icon-large">📱</span>
+                            <span class="btn-text">QR</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de registros -->
+        <section class="table-section">
+            <div class="table-header">
+                <h2>📊 REGISTROS</h2>
+                <div class="table-stats">
+                    <span id="totalRegistros" class="stats-number">0 registros</span>
+                    <span id="filtroActivo" class="filtro-badge" style="display: none;"></span>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="registrosTable">
+                    <thead>
+                        <tr>
+                            <th>PO</th>
+                            <th>VER</th>
+                            <th>PROCESO</th>
+                            <th>REEMP</th>
+                            <th>SEM</th>
+                            <th>FECHA</th>
+                            <th>ESTILO</th>
+                            <th>TELA</th>
+                            <th>C</th>
+                            <th>M</th>
+                            <th>Y</th>
+                            <th>K</th>
+                            <th>TURQ</th>
+                            <th>ORA</th>
+                            <th>F.YEL</th>
+                            <th>F.PNK</th>
+                            <th>PLOTTER</th>
+                            <th>ADH</th>
+                            <th>T°M</th>
+                            <th>VEL</th>
+                            <th>T°F</th>
+                            <th>T/F</th>
+                            <th>ACCIONES</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="23" class="loading">Cargando registros...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modales -->
+    <div id="modalHistorial" class="modal">
+        <div class="modal-content modal-historial">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <span class="modal-icon">📋</span>
+                    <h3>HISTORIAL DE EDICIONES</h3>
+                </div>
+                <button class="modal-close">
+                    <span>✕</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="historialContainer" class="historial-container"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn close-btn">CERRAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalImpresion" class="modal">
+        <div class="modal-content modal-impresion">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <span class="modal-icon">🖨️</span>
+                    <h3>IMPRIMIR COMPROBANTE QR</h3>
+                </div>
+                <button class="modal-close">
+                    <span>✕</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-select-container">
+                    <label for="selectRegistroImprimir" class="modal-label">
+                        <span>📋</span> Seleccionar registro
+                    </label>
+                    <select id="selectRegistroImprimir" class="modal-select">
+                        <option value="">— Elige un registro —</option>
+                    </select>
+                </div>
+                <button id="imprimirIndividualBtn" class="modal-action-btn">
+                    <span class="btn-icon">🖨️</span>
+                    <span class="btn-text">IMPRIMIR CON QR</span>
+                    <span class="btn-badge">1/4 CARTA</span>
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn cancel-btn">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
