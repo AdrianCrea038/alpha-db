@@ -1,9 +1,9 @@
 // ALPHA DB - Sistema de Gestión Premium
-// Versión 8.3 - CORREGIDO (Sin estructura circular)
+// Versión 8.4 - CON COLORES DINÁMICOS Y QR CORREGIDO
 
 // ==================== CONFIGURACIÓN ====================
 const SISTEMA_NOMBRE = 'ALPHA DB';
-const DB_VERSION = '8.3';
+const DB_VERSION = '8.4';
 const DB_EXTENSION = '.adb';
 
 // Estado de la aplicación
@@ -12,6 +12,7 @@ let currentSearch = '';
 let currentSemana = '';
 let editandoId = null;
 let historialEdiciones = {};
+let contadorColores = 1; // Para IDs únicos
 
 // ==================== FUNCIONES UTILITARIAS ====================
 
@@ -61,6 +62,102 @@ function mostrarNotificacion(mensaje, tipo = 'success') {
     }, 2500);
 }
 
+// ==================== FUNCIONES PARA COLORES DINÁMICOS ====================
+
+function agregarGrupoColor(nombreColor = '', cyan = 0, magenta = 0, yellow = 0, black = 0, turquesa = 0, naranja = 0, fluorYellow = 0, fluorPink = 0) {
+    const container = document.getElementById('coloresContainer');
+    const nuevoId = contadorColores++;
+    
+    const colorGroup = document.createElement('div');
+    colorGroup.className = 'color-grupo';
+    colorGroup.dataset.id = nuevoId;
+    
+    colorGroup.innerHTML = `
+        <div class="color-header">
+            <span class="color-titulo">🎨 ESPECIFICACIÓN DE COLOR ${nuevoId}</span>
+            <button type="button" class="btn-eliminar-color" onclick="eliminarGrupoColor(this)">✕</button>
+        </div>
+        
+        <div class="color-nombre-grupo">
+            <input type="text" id="color_nombre_${nuevoId}" placeholder="NOMBRE DEL COLOR" value="${nombreColor}" class="input-bonito">
+        </div>
+        
+        <div class="color-valores-grid">
+            <div class="color-valor-item">
+                <label>CYAN (C)</label>
+                <input type="number" id="color_cyan_${nuevoId}" step="0.1" min="0" max="100" value="${cyan}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label>MAGENTA (M)</label>
+                <input type="number" id="color_magenta_${nuevoId}" step="0.1" min="0" max="100" value="${magenta}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label>YELLOW (Y)</label>
+                <input type="number" id="color_yellow_${nuevoId}" step="0.1" min="0" max="100" value="${yellow}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label>BLACK (K)</label>
+                <input type="number" id="color_black_${nuevoId}" step="0.1" min="0" max="100" value="${black}" class="input-color">
+            </div>
+        </div>
+        
+        <div style="margin-top: 0.8rem; font-size: 0.8rem; color: #ffd93d; text-align: center;">COLORES EXTRAS</div>
+        
+        <div class="color-valores-grid" style="margin-top: 0.5rem;">
+            <div class="color-valor-item">
+                <label style="color: #40e0d0;">TURQUESA</label>
+                <input type="number" id="color_turquesa_${nuevoId}" step="0.1" min="0" max="100" value="${turquesa}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label style="color: #ffa500;">NARANJA</label>
+                <input type="number" id="color_naranja_${nuevoId}" step="0.1" min="0" max="100" value="${naranja}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label style="color: #ffff00;">FLUOR YELLOW</label>
+                <input type="number" id="color_fluoryellow_${nuevoId}" step="0.1" min="0" max="100" value="${fluorYellow}" class="input-color">
+            </div>
+            <div class="color-valor-item">
+                <label style="color: #ff69b4;">FLUOR PINK</label>
+                <input type="number" id="color_fluorpink_${nuevoId}" step="0.1" min="0" max="100" value="${fluorPink}" class="input-color">
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(colorGroup);
+}
+
+function eliminarGrupoColor(btn) {
+    if (confirm('¿Eliminar este grupo de color?')) {
+        const grupo = btn.closest('.color-grupo');
+        if (grupo) {
+            grupo.remove();
+        }
+    }
+}
+
+function obtenerColoresDeFormulario() {
+    const grupos = document.querySelectorAll('.color-grupo');
+    const colores = [];
+    
+    grupos.forEach(grupo => {
+        const id = grupo.dataset.id;
+        colores.push({
+            id: parseInt(id),
+            nombre: document.getElementById(`color_nombre_${id}`)?.value || '',
+            cyan: parseFloat(document.getElementById(`color_cyan_${id}`)?.value) || 0,
+            magenta: parseFloat(document.getElementById(`color_magenta_${id}`)?.value) || 0,
+            yellow: parseFloat(document.getElementById(`color_yellow_${id}`)?.value) || 0,
+            black: parseFloat(document.getElementById(`color_black_${id}`)?.value) || 0,
+            turquesa: parseFloat(document.getElementById(`color_turquesa_${id}`)?.value) || 0,
+            naranja: parseFloat(document.getElementById(`color_naranja_${id}`)?.value) || 0,
+            fluorYellow: parseFloat(document.getElementById(`color_fluoryellow_${id}`)?.value) || 0,
+            fluorPink: parseFloat(document.getElementById(`color_fluorpink_${id}`)?.value) || 0
+        });
+    });
+    
+    return colores;
+}
+
 // ==================== FILTROS Y UI ====================
 
 function filtrarRegistrosArray() {
@@ -82,40 +179,29 @@ function filtrarRegistrosArray() {
         
         if (!termino) return true;
         
-        const datosCompletos = [
-            safeToString(reg.po),
-            safeToString(reg.proceso),
-            safeToString(reg.esReemplazo ? 'reemplazo' : 'produccion'),
-            safeToString(reg.estilo),
-            safeToString(reg.tela),
-            safeToString(reg.cyan),
-            safeToString(reg.magenta),
-            safeToString(reg.yellow),
-            safeToString(reg.black),
-            safeToString(reg.color1_nombre),
-            safeToString(reg.color1_valor),
-            safeToString(reg.color2_nombre),
-            safeToString(reg.color2_valor),
-            safeToString(reg.color3_nombre),
-            safeToString(reg.color3_valor),
-            safeToString(reg.color4_nombre),
-            safeToString(reg.color4_valor),
-            safeToString(reg.numero_plotter),
-            safeToString(reg.plotter_temp),
-            safeToString(reg.plotter_humedad),
-            safeToString(reg.plotter_perfil),
-            safeToString(reg.adhesivo),
-            safeToString(reg.semana),
-            safeToString(reg.temperatura_monti),
-            safeToString(reg.velocidad_monti),
-            safeToString(reg.temperatura_flat),
-            safeToString(reg.tiempo_flat),
-            safeToString(reg.fecha),
-            safeToString(formatearFecha(reg.fecha)),
-            safeToString(reg.id)
-        ].join(' ').toLowerCase();
+        // Buscar en todos los campos incluyendo colores dinámicos
+        let textoBusqueda = safeToString(reg.po) + ' ' + 
+                           safeToString(reg.proceso) + ' ' + 
+                           safeToString(reg.estilo) + ' ' + 
+                           safeToString(reg.tela) + ' ' + 
+                           safeToString(reg.adhesivo);
         
-        return datosCompletos.includes(termino);
+        // Agregar colores dinámicos
+        if (reg.colores && Array.isArray(reg.colores)) {
+            reg.colores.forEach(color => {
+                textoBusqueda += ' ' + safeToString(color.nombre);
+                textoBusqueda += ' ' + safeToString(color.cyan);
+                textoBusqueda += ' ' + safeToString(color.magenta);
+                textoBusqueda += ' ' + safeToString(color.yellow);
+                textoBusqueda += ' ' + safeToString(color.black);
+                textoBusqueda += ' ' + safeToString(color.turquesa);
+                textoBusqueda += ' ' + safeToString(color.naranja);
+                textoBusqueda += ' ' + safeToString(color.fluorYellow);
+                textoBusqueda += ' ' + safeToString(color.fluorPink);
+            });
+        }
+        
+        return textoBusqueda.toLowerCase().includes(termino);
     });
     
     return resultados;
@@ -154,7 +240,7 @@ function mostrarTabla(registrosMostrar) {
     if (!tbody) return;
     
     if (registrosMostrar.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="23" class="loading">📭 Sin resultados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17" class="loading">📭 Sin resultados</td></tr>';
         return;
     }
     
@@ -171,6 +257,16 @@ function mostrarTabla(registrosMostrar) {
             `<span style="background: ${getProcesoColor(reg.proceso)}; color:white; padding:0.2rem 0.5rem; border-radius:1rem;">${reg.proceso}</span>` : 
             '-';
         
+        // Mostrar colores de forma compacta
+        let coloresHtml = '';
+        if (reg.colores && reg.colores.length > 0) {
+            coloresHtml = reg.colores.map(c => 
+                `<span class="color-tag" title="${c.nombre}">${c.nombre}</span>`
+            ).join(' ');
+        } else {
+            coloresHtml = '-';
+        }
+        
         return `
             <tr class="${rowClass}">
                 <td><span class="po-badge" style="font-size:0.9rem;">${reg.po || '-'}</span></td>
@@ -181,14 +277,7 @@ function mostrarTabla(registrosMostrar) {
                 <td>${formatearFecha(reg.fecha)}</td>
                 <td>${reg.estilo}</td>
                 <td>${reg.tela}</td>
-                <td style="color: #60a5fa; font-weight: 600;">${(reg.cyan || 0).toFixed(1)}</td>
-                <td style="color: #f472b6; font-weight: 600;">${(reg.magenta || 0).toFixed(1)}</td>
-                <td style="color: #fbbf24; font-weight: 600;">${(reg.yellow || 0).toFixed(1)}</td>
-                <td style="color: #9ca3af; font-weight: 600;">${(reg.black || 0).toFixed(1)}</td>
-                <td style="color: #40e0d0; font-weight:600;">${reg.color1_nombre}:${(reg.color1_valor || 0).toFixed(1)}</td>
-                <td style="color: #ffa500; font-weight:600;">${reg.color2_nombre}:${(reg.color2_valor || 0).toFixed(1)}</td>
-                <td style="color: #ffff00; font-weight:600; background:rgba(0,0,0,0.2);">${reg.color3_nombre}:${(reg.color3_valor || 0).toFixed(1)}</td>
-                <td style="color: #ff69b4; font-weight:600;">${reg.color4_nombre}:${(reg.color4_valor || 0).toFixed(1)}</td>
+                <td colspan="2" class="color-cell">${coloresHtml}</td>
                 <td><span style="background: #9c27b0; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${plotterText}</span></td>
                 <td>${reg.adhesivo || '-'}</td>
                 <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
@@ -312,9 +401,19 @@ document.addEventListener('DOMContentLoaded', () => {
         fechaInput.addEventListener('change', verificarFechaObservacion);
     }
     
-    const toggleBtn = document.getElementById('toggleExtrasBtn');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', toggleExtras);
+    // Inicializar con un grupo de color por defecto
+    setTimeout(() => {
+        if (document.getElementById('coloresContainer').children.length === 0) {
+            agregarGrupoColor();
+        }
+    }, 100);
+    
+    // Botón para agregar colores
+    const agregarBtn = document.getElementById('agregarColorBtn');
+    if (agregarBtn) {
+        agregarBtn.addEventListener('click', () => {
+            agregarGrupoColor();
+        });
     }
     
     const searchInput = document.getElementById('searchInput');
@@ -355,21 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarUI();
     actualizarEstadisticas();
 });
-
-function toggleExtras() {
-    const extrasContainer = document.getElementById('extrasContainer');
-    const toggleBtn = document.getElementById('toggleExtrasBtn');
-    
-    if (!extrasContainer || !toggleBtn) return;
-    
-    if (extrasContainer.style.display === 'none') {
-        extrasContainer.style.display = 'block';
-        toggleBtn.innerHTML = '<span>🎨</span> OCULTAR COLORES EXTRAS';
-    } else {
-        extrasContainer.style.display = 'none';
-        toggleBtn.innerHTML = '<span>🎨</span> MOSTRAR COLORES EXTRAS';
-    }
-}
 
 function verificarFechaObservacion() {
     const fechaInput = document.getElementById('fecha');
@@ -461,34 +545,45 @@ function exportarAExcel() {
     }
     
     try {
-        const datosExcel = registrosFiltrados.map(reg => ({
-            'PO': reg.po || '',
-            'Versión': reg.version || 1,
-            'Proceso': reg.proceso || '',
-            'Reemplazo': reg.esReemplazo ? 'Sí' : 'No',
-            'Semana': reg.semana,
-            'Fecha': reg.fecha,
-            'Estilo/Deporte': reg.estilo,
-            'Tela': reg.tela,
-            'Cian (C)': reg.cyan || 0,
-            'Magenta (M)': reg.magenta || 0,
-            'Yellow (Y)': reg.yellow || 0,
-            'Black (K)': reg.black || 0,
-            'Turquesa': reg.color1_valor || 0,
-            'Naranja': reg.color2_valor || 0,
-            'Fluor Yellow': reg.color3_valor || 0,
-            'Fluor Pink': reg.color4_valor || 0,
-            'N° Plotter': reg.numero_plotter || 0,
-            'Plotter Temp': reg.plotter_temp || 0,
-            'Plotter Humedad': reg.plotter_humedad || 0,
-            'Plotter Perfil': reg.plotter_perfil || '',
-            'Adhesivo': reg.adhesivo,
-            'Temp Monti °C': reg.temperatura_monti,
-            'Vel Monti m/min': reg.velocidad_monti,
-            'Temp Flat °C': reg.temperatura_flat,
-            'Tiempo Flat s': reg.tiempo_flat,
-            'Observación': reg.observacion || ''
-        }));
+        const datosExcel = registrosFiltrados.map(reg => {
+            const fila = {
+                'PO': reg.po || '',
+                'Versión': reg.version || 1,
+                'Proceso': reg.proceso || '',
+                'Reemplazo': reg.esReemplazo ? 'Sí' : 'No',
+                'Semana': reg.semana,
+                'Fecha': reg.fecha,
+                'Estilo/Deporte': reg.estilo,
+                'Tela': reg.tela,
+                'N° Plotter': reg.numero_plotter || 0,
+                'Plotter Temp': reg.plotter_temp || 0,
+                'Plotter Humedad': reg.plotter_humedad || 0,
+                'Plotter Perfil': reg.plotter_perfil || '',
+                'Adhesivo': reg.adhesivo,
+                'Temp Monti °C': reg.temperatura_monti,
+                'Vel Monti m/min': reg.velocidad_monti,
+                'Temp Flat °C': reg.temperatura_flat,
+                'Tiempo Flat s': reg.tiempo_flat,
+                'Observación': reg.observacion || ''
+            };
+            
+            // Agregar colores dinámicos
+            if (reg.colores && reg.colores.length > 0) {
+                reg.colores.forEach((color, idx) => {
+                    fila[`Color ${idx+1} Nombre`] = color.nombre || '';
+                    fila[`Color ${idx+1} Cyan`] = color.cyan || 0;
+                    fila[`Color ${idx+1} Magenta`] = color.magenta || 0;
+                    fila[`Color ${idx+1} Yellow`] = color.yellow || 0;
+                    fila[`Color ${idx+1} Black`] = color.black || 0;
+                    fila[`Color ${idx+1} Turquesa`] = color.turquesa || 0;
+                    fila[`Color ${idx+1} Naranja`] = color.naranja || 0;
+                    fila[`Color ${idx+1} Fluor Yellow`] = color.fluorYellow || 0;
+                    fila[`Color ${idx+1} Fluor Pink`] = color.fluorPink || 0;
+                });
+            }
+            
+            return fila;
+        });
         
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(datosExcel);
@@ -540,6 +635,9 @@ function guardarRegistro(e) {
         descripcionEdicion = prompt('📝 Describe brevemente qué cambios realizaste en esta edición:', '');
     }
     
+    // Obtener colores dinámicos
+    const colores = obtenerColoresDeFormulario();
+    
     const registroData = {
         id: editId || generarIdUnico(),
         po: po.toUpperCase(),
@@ -550,19 +648,8 @@ function guardarRegistro(e) {
         estilo: estilo.toUpperCase(),
         tela: tela.toUpperCase(),
         
-        cyan: parseFloat(document.getElementById('cyan')?.value) || 0,
-        magenta: parseFloat(document.getElementById('magenta')?.value) || 0,
-        yellow: parseFloat(document.getElementById('yellow')?.value) || 0,
-        black: parseFloat(document.getElementById('black')?.value) || 0,
-        
-        color1_nombre: 'TURQUESA',
-        color1_valor: parseFloat(document.getElementById('color1_valor')?.value) || 0,
-        color2_nombre: 'NARANJA',
-        color2_valor: parseFloat(document.getElementById('color2_valor')?.value) || 0,
-        color3_nombre: 'FLUOR YELLOW',
-        color3_valor: parseFloat(document.getElementById('color3_valor')?.value) || 0,
-        color4_nombre: 'FLUOR PINK',
-        color4_valor: parseFloat(document.getElementById('color4_valor')?.value) || 0,
+        // Array de colores dinámicos
+        colores: colores,
         
         numero_plotter: parseInt(document.getElementById('numero_plotter')?.value) || 0,
         plotter_temp: parseFloat(document.getElementById('plotter_temp')?.value) || 0,
@@ -591,21 +678,17 @@ function guardarRegistro(e) {
                 historialEdiciones[editId] = [];
             }
             
-            // IMPORTANTE: NO guardamos el objeto historial dentro del registro
-            // Solo guardamos la referencia en historialEdiciones aparte
             historialEdiciones[editId].push({
                 fecha: ahora,
                 descripcion: descripcionEdicion || 'Edición sin descripción',
                 anterior: {
                     po: original.po,
                     proceso: original.proceso,
-                    esReemplazo: original.esReemplazo,
                     version: original.version
                 },
                 nuevo: {
                     po: registroData.po,
                     proceso: registroData.proceso,
-                    esReemplazo: registroData.esReemplazo,
                     version: registroData.version
                 }
             });
@@ -613,7 +696,6 @@ function guardarRegistro(e) {
             registroData.creado = original.creado;
             registroData.version = (original.version || 1) + 1;
             registroData.actualizado = ahora;
-            // NO guardamos registroData.historial = historialEdiciones[editId] (esto causa el error circular)
             
             registros[index] = registroData;
             mostrarNotificacion(`✅ Registro editado (versión ${registroData.version})`, 'success');
@@ -631,6 +713,82 @@ function guardarRegistro(e) {
     resetFormulario();
     actualizarUI();
     actualizarEstadisticas();
+}
+
+function editarRegistro(id) {
+    const registro = registros.find(r => r.id === id);
+    if (!registro) {
+        mostrarNotificacion('❌ Registro no encontrado', 'error');
+        return;
+    }
+    
+    editandoId = id;
+    document.getElementById('editId').value = id;
+    
+    // Limpiar contenedor de colores
+    const container = document.getElementById('coloresContainer');
+    container.innerHTML = '';
+    
+    // Recargar contador
+    contadorColores = 1;
+    
+    // Agregar colores del registro
+    if (registro.colores && registro.colores.length > 0) {
+        registro.colores.forEach(color => {
+            agregarGrupoColor(
+                color.nombre,
+                color.cyan, color.magenta, color.yellow, color.black,
+                color.turquesa, color.naranja, color.fluorYellow, color.fluorPink
+            );
+        });
+    } else {
+        // Si no tiene colores, agregar uno vacío
+        agregarGrupoColor();
+    }
+    
+    const setValueIfExists = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value !== undefined && value !== null ? value : '';
+    };
+    
+    setValueIfExists('po', registro.po || '');
+    setValueIfExists('proceso', registro.proceso || '');
+    const esReemplazo = document.getElementById('esReemplazo');
+    if (esReemplazo) esReemplazo.checked = registro.esReemplazo || false;
+    setValueIfExists('fecha', registro.fecha);
+    setValueIfExists('estilo', registro.estilo);
+    setValueIfExists('tela', registro.tela);
+    
+    setValueIfExists('numero_plotter', registro.numero_plotter);
+    setValueIfExists('plotter_temp', registro.plotter_temp);
+    setValueIfExists('plotter_humedad', registro.plotter_humedad);
+    setValueIfExists('plotter_perfil', registro.plotter_perfil);
+    
+    setValueIfExists('adhesivo', registro.adhesivo);
+    setValueIfExists('temp_monti', registro.temperatura_monti);
+    setValueIfExists('vel_monti', registro.velocidad_monti);
+    setValueIfExists('temp_flat', registro.temperatura_flat);
+    setValueIfExists('tiempo_flat', registro.tiempo_flat);
+    
+    verificarFechaObservacion();
+    if (registro.observacion) {
+        setValueIfExists('observacion', registro.observacion);
+    }
+    
+    const formTitle = document.getElementById('formTitle');
+    if (formTitle) formTitle.innerHTML = '✏️ EDITANDO REGISTRO';
+    
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.innerHTML = '<span>✏️</span> ACTUALIZAR';
+    
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) cancelEditBtn.style.display = 'block';
+    
+    const formSection = document.querySelector('.form-section');
+    if (formSection) {
+        formSection.classList.add('edit-mode');
+        formSection.scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
 function verHistorial(id) {
@@ -684,6 +842,7 @@ function verHistorial(id) {
             </div>
             <div style="margin-top:0.5rem;">
                 <div>PO: ${registro.po || '-'} | Proceso: ${registro.proceso || '-'}</div>
+                <div>Colores: ${registro.colores ? registro.colores.length : 0}</div>
             </div>
             ${registro.observacion ? `<div style="margin-top:0.5rem; color:#ffd93d;">📝 ${registro.observacion}</div>` : ''}
         </div>
@@ -691,71 +850,6 @@ function verHistorial(id) {
     
     container.innerHTML = html;
     modal.classList.add('show');
-}
-
-function editarRegistro(id) {
-    const registro = registros.find(r => r.id === id);
-    if (!registro) {
-        mostrarNotificacion('❌ Registro no encontrado', 'error');
-        return;
-    }
-    
-    editandoId = id;
-    document.getElementById('editId').value = id;
-    
-    const setValueIfExists = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.value = value !== undefined && value !== null ? value : '';
-    };
-    
-    setValueIfExists('po', registro.po || '');
-    setValueIfExists('proceso', registro.proceso || '');
-    const esReemplazo = document.getElementById('esReemplazo');
-    if (esReemplazo) esReemplazo.checked = registro.esReemplazo || false;
-    setValueIfExists('fecha', registro.fecha);
-    setValueIfExists('estilo', registro.estilo);
-    setValueIfExists('tela', registro.tela);
-    
-    setValueIfExists('cyan', registro.cyan);
-    setValueIfExists('magenta', registro.magenta);
-    setValueIfExists('yellow', registro.yellow);
-    setValueIfExists('black', registro.black);
-    
-    setValueIfExists('color1_valor', registro.color1_valor);
-    setValueIfExists('color2_valor', registro.color2_valor);
-    setValueIfExists('color3_valor', registro.color3_valor);
-    setValueIfExists('color4_valor', registro.color4_valor);
-    
-    setValueIfExists('numero_plotter', registro.numero_plotter);
-    setValueIfExists('plotter_temp', registro.plotter_temp);
-    setValueIfExists('plotter_humedad', registro.plotter_humedad);
-    setValueIfExists('plotter_perfil', registro.plotter_perfil);
-    
-    setValueIfExists('adhesivo', registro.adhesivo);
-    setValueIfExists('temp_monti', registro.temperatura_monti);
-    setValueIfExists('vel_monti', registro.velocidad_monti);
-    setValueIfExists('temp_flat', registro.temperatura_flat);
-    setValueIfExists('tiempo_flat', registro.tiempo_flat);
-    
-    verificarFechaObservacion();
-    if (registro.observacion) {
-        setValueIfExists('observacion', registro.observacion);
-    }
-    
-    const formTitle = document.getElementById('formTitle');
-    if (formTitle) formTitle.innerHTML = '✏️ EDITANDO REGISTRO';
-    
-    const submitBtn = document.getElementById('submitBtn');
-    if (submitBtn) submitBtn.innerHTML = '<span>✏️</span> ACTUALIZAR';
-    
-    const cancelEditBtn = document.getElementById('cancelEditBtn');
-    if (cancelEditBtn) cancelEditBtn.style.display = 'block';
-    
-    const formSection = document.querySelector('.form-section');
-    if (formSection) {
-        formSection.classList.add('edit-mode');
-        formSection.scrollIntoView({ behavior: 'smooth' });
-    }
 }
 
 function cancelarEdicion() {
@@ -767,6 +861,13 @@ function resetFormulario() {
     editandoId = null;
     document.getElementById('editId').value = '';
     document.getElementById('registroForm').reset();
+    
+    // Resetear colores
+    const container = document.getElementById('coloresContainer');
+    container.innerHTML = '';
+    contadorColores = 1;
+    agregarGrupoColor();
+    
     const hoy = new Date().toISOString().split('T')[0];
     const fechaInput = document.getElementById('fecha');
     if (fechaInput) fechaInput.value = hoy;
@@ -836,13 +937,33 @@ function generarDatosEjemplo() {
     const procesos = ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'];
     const estilos = ['LIBRE', 'MARIPOSA', 'PECHO', 'ESPALDA'];
     const telas = ['ALGODÓN', 'POLIÉSTER', 'NYLON'];
+    const nombresColores = ['ROJO INTENSO', 'AZUL MARINO', 'VERDE BANDEIRA', 'AMARILLO ORO'];
     const ahora = new Date().toISOString();
     const hoy = new Date().toISOString().split('T')[0];
     
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
         const fecha = new Date();
         fecha.setDate(fecha.getDate() - i * 2);
         const fechaStr = fecha.toISOString().split('T')[0];
+        
+        // Crear 1-3 colores por registro
+        const numColores = Math.floor(Math.random() * 3) + 1;
+        const colores = [];
+        
+        for (let j = 0; j < numColores; j++) {
+            colores.push({
+                id: j + 1,
+                nombre: nombresColores[Math.floor(Math.random() * nombresColores.length)],
+                cyan: parseFloat((Math.random() * 100).toFixed(1)),
+                magenta: parseFloat((Math.random() * 100).toFixed(1)),
+                yellow: parseFloat((Math.random() * 100).toFixed(1)),
+                black: parseFloat((Math.random() * 100).toFixed(1)),
+                turquesa: parseFloat((Math.random() * 100).toFixed(1)),
+                naranja: parseFloat((Math.random() * 100).toFixed(1)),
+                fluorYellow: parseFloat((Math.random() * 100).toFixed(1)),
+                fluorPink: parseFloat((Math.random() * 100).toFixed(1))
+            });
+        }
         
         ejemplos.push({
             id: generarIdUnico(),
@@ -853,18 +974,7 @@ function generarDatosEjemplo() {
             fecha: fechaStr,
             estilo: estilos[Math.floor(Math.random() * estilos.length)],
             tela: telas[Math.floor(Math.random() * telas.length)],
-            cyan: parseFloat((Math.random() * 100).toFixed(1)),
-            magenta: parseFloat((Math.random() * 100).toFixed(1)),
-            yellow: parseFloat((Math.random() * 100).toFixed(1)),
-            black: parseFloat((Math.random() * 100).toFixed(1)),
-            color1_nombre: 'TURQUESA',
-            color1_valor: parseFloat((Math.random() * 100).toFixed(1)),
-            color2_nombre: 'NARANJA',
-            color2_valor: parseFloat((Math.random() * 100).toFixed(1)),
-            color3_nombre: 'FLUOR YELLOW',
-            color3_valor: parseFloat((Math.random() * 100).toFixed(1)),
-            color4_nombre: 'FLUOR PINK',
-            color4_valor: parseFloat((Math.random() * 100).toFixed(1)),
+            colores: colores,
             numero_plotter: Math.floor(Math.random() * 5),
             plotter_temp: parseFloat((20 + Math.random() * 10).toFixed(1)),
             plotter_humedad: parseFloat((40 + Math.random() * 20).toFixed(0)),
@@ -886,10 +996,7 @@ function generarDatosEjemplo() {
 
 function guardarRegistrosLocal() {
     try {
-        // IMPORTANTE: Guardamos registros e historial por separado
-        // Los registros NO deben contener el historial para evitar círculos
         const registrosParaGuardar = registros.map(reg => {
-            // Crear una copia sin la propiedad historial si existe
             const { historial, ...regSinHistorial } = reg;
             return regSinHistorial;
         });
@@ -978,7 +1085,7 @@ function importarBaseDatos(event) {
     event.target.value = '';
 }
 
-// ==================== FUNCIONES DE IMPRESIÓN ====================
+// ==================== FUNCIONES DE IMPRESIÓN CON QR CORREGIDO ====================
 
 function imprimirReportesHandler() {
     const registrosFiltrados = filtrarRegistrosArray();
@@ -998,9 +1105,9 @@ function imprimirReportesHandler() {
             <style>
                 body { font-family: Arial; margin: 0.5in; background: white; color: black; }
                 h1 { color: #000; text-align: center; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                th { background: #000; color: white; padding: 6px; text-align: left; }
-                td { padding: 4px; border-bottom: 1px solid #000; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 9px; }
+                th { background: #000; color: white; padding: 4px; text-align: left; }
+                td { padding: 3px; border-bottom: 1px solid #000; }
                 .total { margin-top: 20px; font-weight: bold; text-align: right; }
             </style>
         </head>
@@ -1019,14 +1126,7 @@ function imprimirReportesHandler() {
                         <th>Fecha</th>
                         <th>Estilo</th>
                         <th>Tela</th>
-                        <th>C</th>
-                        <th>M</th>
-                        <th>Y</th>
-                        <th>K</th>
-                        <th>Turq</th>
-                        <th>Nar</th>
-                        <th>F.Y</th>
-                        <th>F.P</th>
+                        <th>Colores</th>
                         <th>Plotter</th>
                         <th>Adh</th>
                         <th>T°M</th>
@@ -1043,6 +1143,12 @@ function imprimirReportesHandler() {
             `${reg.plotter_temp.toFixed(1)}°/${reg.plotter_humedad.toFixed(0)}%` : 
             '-';
         
+        // Resumir colores
+        let coloresResumen = '-';
+        if (reg.colores && reg.colores.length > 0) {
+            coloresResumen = reg.colores.map(c => c.nombre).join(', ');
+        }
+        
         htmlContenido += `
             <tr>
                 <td>${reg.po || '-'}</td>
@@ -1053,14 +1159,7 @@ function imprimirReportesHandler() {
                 <td>${formatearFecha(reg.fecha)}</td>
                 <td>${reg.estilo}</td>
                 <td>${reg.tela}</td>
-                <td>${(reg.cyan || 0).toFixed(1)}</td>
-                <td>${(reg.magenta || 0).toFixed(1)}</td>
-                <td>${(reg.yellow || 0).toFixed(1)}</td>
-                <td>${(reg.black || 0).toFixed(1)}</td>
-                <td>${(reg.color1_valor || 0).toFixed(1)}</td>
-                <td>${(reg.color2_valor || 0).toFixed(1)}</td>
-                <td>${(reg.color3_valor || 0).toFixed(1)}</td>
-                <td>${(reg.color4_valor || 0).toFixed(1)}</td>
+                <td>${coloresResumen}</td>
                 <td>${plotterText}</td>
                 <td>${reg.adhesivo || '-'}</td>
                 <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
@@ -1084,6 +1183,7 @@ function imprimirReportesHandler() {
     ventanaImpresion.document.close();
 }
 
+// ==================== IMPRESIÓN INDIVIDUAL CON QR CORREGIDO ====================
 function imprimirRegistroIndividual(id) {
     const registro = registros.find(r => r.id === id);
     if (!registro) {
@@ -1098,45 +1198,18 @@ function imprimirRegistroIndividual(id) {
     
     const ventanaImpresion = window.open('', '_blank');
     
-    // Datos para QR (resumidos para que no sea muy grande)
-    const datosQR = {
-        id: registro.id,
-        po: registro.po,
-        version: registro.version,
-        proceso: registro.proceso,
-        reemplazo: registro.esReemplazo,
-        fecha: registro.fecha,
-        estilo: registro.estilo,
-        tela: registro.tela,
-        colores: {
-            cyan: registro.cyan,
-            magenta: registro.magenta,
-            yellow: registro.yellow,
-            black: registro.black,
-            turquesa: registro.color1_valor,
-            naranja: registro.color2_valor,
-            fluorYellow: registro.color3_valor,
-            fluorPink: registro.color4_valor
-        },
-        plotter: {
-            num: registro.numero_plotter,
-            temp: registro.plotter_temp,
-            hum: registro.plotter_humedad,
-            perfil: registro.plotter_perfil
-        },
-        monti: {
-            temp: registro.temperatura_monti,
-            vel: registro.velocidad_monti,
-            presion: registro.monti_presion
-        },
-        flat: {
-            temp: registro.temperatura_flat,
-            tiempo: registro.tiempo_flat
-        },
-        adhesivo: registro.adhesivo
-    };
+    // Datos para QR en formato CSV simple (más legible para lectores)
+    let qrText = `ID:${registro.id}|PO:${registro.po || 'S/PO'}|VER:${registro.version}|PROC:${registro.proceso}|FECHA:${registro.fecha}|ESTILO:${registro.estilo}|TELA:${registro.tela}`;
     
-    const qrData = JSON.stringify(datosQR);
+    // Agregar colores
+    if (registro.colores && registro.colores.length > 0) {
+        registro.colores.forEach((c, idx) => {
+            qrText += `|COLOR${idx+1}:${c.nombre}|C:${c.cyan}|M:${c.magenta}|Y:${c.yellow}|K:${c.black}|T:${c.turquesa}|N:${c.naranja}|FY:${c.fluorYellow}|FP:${c.fluorPink}`;
+        });
+    }
+    
+    // Agregar parámetros
+    qrText += `|PLOTTER:${registro.numero_plotter}|TEMP:${registro.plotter_temp}|HUM:${registro.plotter_humedad}|MONTI:${registro.temperatura_monti}|VEL:${registro.velocidad_monti}|FLAT:${registro.temperatura_flat}|TIEMPO:${registro.tiempo_flat}`;
     
     const htmlContenido = `
         <!DOCTYPE html>
@@ -1157,7 +1230,6 @@ function imprimirRegistroIndividual(id) {
                     border-radius: 15px;
                     max-width: 8.5in;
                     margin: 0 auto;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
                 }
                 .header { 
                     display: flex; 
@@ -1171,79 +1243,47 @@ function imprimirRegistroIndividual(id) {
                     margin: 0;
                     font-size: 28px;
                     font-weight: 800;
-                    color: #000;
                 }
-                .po-version {
-                    text-align: right;
-                }
-                .po-destacado {
-                    font-size: 32px;
-                    font-weight: 900;
-                    color: #000;
-                    line-height: 1.2;
-                    letter-spacing: 1px;
-                }
-                .version-destacado {
-                    font-size: 24px;
-                    font-weight: 900;
-                    color: #ff0000;
-                    line-height: 1.2;
-                }
+                .po-version { text-align: right; }
+                .po-destacado { font-size: 32px; font-weight: 900; }
+                .version-destacado { font-size: 24px; font-weight: 900; color: #ff0000; }
                 .info-principal {
                     display: grid;
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 15px;
+                    gap: 10px;
                     margin: 20px 0;
                     padding: 15px;
                     background: #f5f5f5;
                     border-radius: 10px;
                 }
-                .info-item {
-                    display: flex;
-                    flex-direction: column;
-                }
-                .info-label {
-                    font-size: 12px;
-                    color: #666;
-                    text-transform: uppercase;
-                    font-weight: 600;
-                }
-                .info-value {
-                    font-size: 18px;
-                    font-weight: 700;
-                    color: #000;
-                }
                 .seccion-titulo {
-                    font-size: 16px;
+                    font-size: 18px;
                     font-weight: 800;
-                    color: #000;
-                    margin: 20px 0 10px 0;
+                    margin: 20px 0 10px;
                     padding-bottom: 5px;
                     border-bottom: 2px solid #000;
-                    text-transform: uppercase;
                 }
-                .colores-grid {
-                    display: grid;
-                    grid-template-columns: repeat(4, 1fr);
-                    gap: 10px;
+                .colores-lista {
                     margin: 15px 0;
                 }
-                .color-box {
+                .color-item {
                     background: #f0f0f0;
-                    padding: 10px;
+                    padding: 12px;
+                    margin-bottom: 10px;
                     border-radius: 8px;
-                    text-align: center;
-                    border: 1px solid #ccc;
+                    border-left: 4px solid #ff6b6b;
                 }
                 .color-nombre {
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: #333;
-                }
-                .color-valor {
                     font-size: 16px;
                     font-weight: 700;
+                    margin-bottom: 8px;
                     color: #000;
+                }
+                .color-valores {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 5px;
+                    font-size: 12px;
                 }
                 .parametros-grid {
                     display: grid;
@@ -1257,70 +1297,18 @@ function imprimirRegistroIndividual(id) {
                     border-radius: 8px;
                     border-left: 4px solid #000;
                 }
-                .param-titulo {
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: #666;
-                    text-transform: uppercase;
-                }
-                .param-valor {
-                    font-size: 18px;
-                    font-weight: 700;
-                    color: #000;
-                    margin-top: 5px;
-                }
-                .param-sub {
-                    font-size: 12px;
-                    color: #333;
-                }
-                .footer {
-                    text-align: center;
-                    border-top: 2px solid #000;
-                    padding-top: 15px;
-                    margin-top: 20px;
-                    font-size: 12px;
-                    color: #666;
-                }
                 .qr-section {
                     display: flex;
                     justify-content: center;
                     margin: 20px 0;
                 }
-                #qrcode {
-                    padding: 15px;
-                    background: white;
-                    border: 2px solid #000;
-                    border-radius: 10px;
-                }
-                .proceso-badge {
-                    display: inline-block;
-                    padding: 5px 15px;
-                    border-radius: 20px;
-                    color: white;
-                    font-weight: bold;
-                    font-size: 14px;
-                    margin-right: 10px;
-                }
-                .reemplazo-badge {
-                    background: #ffd93d;
-                    color: black;
-                    padding: 5px 15px;
-                    border-radius: 20px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                .observacion {
-                    margin-top: 15px;
-                    padding: 10px;
-                    background: #fff3cd;
-                    border-left: 4px solid #ffd93d;
-                    font-style: italic;
-                }
+                #qrcode { padding: 15px; background: white; border: 2px solid #000; border-radius: 10px; }
+                .footer { text-align: center; border-top: 2px solid #000; padding-top: 15px; margin-top: 20px; }
+                .qr-note { font-size: 10px; color: #666; text-align: center; margin-top: 5px; }
             </style>
         </head>
         <body>
             <div class="etiqueta">
-                <!-- HEADER con PO y VERSIÓN destacados -->
                 <div class="header">
                     <h1>⚡ ALPHA DB</h1>
                     <div class="po-version">
@@ -1329,125 +1317,82 @@ function imprimirRegistroIndividual(id) {
                     </div>
                 </div>
                 
-                <!-- Proceso y Reemplazo -->
-                <div style="display: flex; gap: 10px; margin: 10px 0;">
-                    <span class="proceso-badge" style="background: ${getProcesoColor(registro.proceso)};">
-                        ${registro.proceso || 'PROCESO'}
-                    </span>
-                    ${registro.esReemplazo ? '<span class="reemplazo-badge">🔄 REEMPLAZO</span>' : ''}
-                </div>
-                
-                <!-- Información Principal -->
                 <div class="info-principal">
-                    <div class="info-item">
-                        <span class="info-label">Fecha</span>
-                        <span class="info-value">${formatearFecha(registro.fecha)}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Semana</span>
-                        <span class="info-value">${registro.semana}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Estilo/Deporte</span>
-                        <span class="info-value">${registro.estilo}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Tela</span>
-                        <span class="info-value">${registro.tela}</span>
-                    </div>
+                    <div><strong>Fecha:</strong> ${formatearFecha(registro.fecha)}</div>
+                    <div><strong>Semana:</strong> ${registro.semana}</div>
+                    <div><strong>Estilo:</strong> ${registro.estilo}</div>
+                    <div><strong>Tela:</strong> ${registro.tela}</div>
+                    <div><strong>Proceso:</strong> ${registro.proceso}</div>
+                    <div><strong>Reemplazo:</strong> ${registro.esReemplazo ? 'SÍ' : 'NO'}</div>
                 </div>
                 
-                <!-- SECCIÓN COLORES -->
                 <div class="seccion-titulo">🎨 ESPECIFICACIÓN DE COLORES</div>
-                <div class="colores-grid">
-                    <div class="color-box">
-                        <div class="color-nombre">CYAN</div>
-                        <div class="color-valor">${(registro.cyan || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">MAGENTA</div>
-                        <div class="color-valor">${(registro.magenta || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">YELLOW</div>
-                        <div class="color-valor">${(registro.yellow || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">BLACK</div>
-                        <div class="color-valor">${(registro.black || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">${registro.color1_nombre}</div>
-                        <div class="color-valor">${(registro.color1_valor || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">${registro.color2_nombre}</div>
-                        <div class="color-valor">${(registro.color2_valor || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">${registro.color3_nombre}</div>
-                        <div class="color-valor">${(registro.color3_valor || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="color-box">
-                        <div class="color-nombre">${registro.color4_nombre}</div>
-                        <div class="color-valor">${(registro.color4_valor || 0).toFixed(1)}%</div>
-                    </div>
+                <div class="colores-lista">
+                    ${registro.colores && registro.colores.length > 0 ? 
+                        registro.colores.map(c => `
+                            <div class="color-item">
+                                <div class="color-nombre">${c.nombre}</div>
+                                <div class="color-valores">
+                                    <div>C: ${c.cyan}%</div>
+                                    <div>M: ${c.magenta}%</div>
+                                    <div>Y: ${c.yellow}%</div>
+                                    <div>K: ${c.black}%</div>
+                                    <div>T: ${c.turquesa}%</div>
+                                    <div>N: ${c.naranja}%</div>
+                                    <div>FY: ${c.fluorYellow}%</div>
+                                    <div>FP: ${c.fluorPink}%</div>
+                                </div>
+                            </div>
+                        `).join('') 
+                        : '<div class="color-item">Sin especificar</div>'
+                    }
                 </div>
                 
-                <!-- SECCIÓN PARÁMETROS DE PRODUCCIÓN -->
-                <div class="seccion-titulo">⚙️ PARÁMETROS DE PRODUCCIÓN</div>
+                <div class="seccion-titulo">⚙️ PARÁMETROS</div>
                 <div class="parametros-grid">
-                    <!-- PLOTTER -->
                     <div class="param-box">
-                        <div class="param-titulo">🖨️ PLOTTER</div>
-                        <div class="param-valor">#${registro.numero_plotter || 0}</div>
-                        <div class="param-sub">Temp: ${(registro.plotter_temp || 0).toFixed(1)}°C</div>
-                        <div class="param-sub">Humedad: ${(registro.plotter_humedad || 0).toFixed(0)}%</div>
-                        <div class="param-sub">Perfil: ${registro.plotter_perfil || '-'}</div>
+                        <strong>🖨️ PLOTTER</strong><br>
+                        N° ${registro.numero_plotter || 0}<br>
+                        Temp: ${(registro.plotter_temp || 0).toFixed(1)}°C<br>
+                        Hum: ${(registro.plotter_humedad || 0).toFixed(0)}%<br>
+                        Perfil: ${registro.plotter_perfil || '-'}
                     </div>
-                    
-                    <!-- MONTI -->
                     <div class="param-box">
-                        <div class="param-titulo">🔥 MONTI</div>
-                        <div class="param-valor">#${registro.monti_numero || 0}</div>
-                        <div class="param-sub">Temp: ${(registro.temperatura_monti || 0).toFixed(1)}°C</div>
-                        <div class="param-sub">Vel: ${(registro.velocidad_monti || 0).toFixed(1)} m/min</div>
-                        <div class="param-sub">Presión: ${(registro.monti_presion || 0).toFixed(1)} bar</div>
+                        <strong>🔥 MONTI</strong><br>
+                        N° ${registro.monti_numero || 0}<br>
+                        Temp: ${(registro.temperatura_monti || 0).toFixed(1)}°C<br>
+                        Vel: ${(registro.velocidad_monti || 0).toFixed(1)} m/min<br>
+                        Presión: ${(registro.monti_presion || 0).toFixed(1)} bar
                     </div>
-                    
-                    <!-- FLAT -->
                     <div class="param-box">
-                        <div class="param-titulo">📏 FLAT</div>
-                        <div class="param-valor">Temp: ${(registro.temperatura_flat || 0).toFixed(1)}°C</div>
-                        <div class="param-sub">Tiempo: ${(registro.tiempo_flat || 0).toFixed(1)} s</div>
-                        <div class="param-sub">Adhesivo: ${registro.adhesivo || '-'}</div>
+                        <strong>📏 FLAT</strong><br>
+                        Temp: ${(registro.temperatura_flat || 0).toFixed(1)}°C<br>
+                        Tiempo: ${(registro.tiempo_flat || 0).toFixed(1)} s<br>
+                        Adhesivo: ${registro.adhesivo || '-'}
                     </div>
                 </div>
                 
-                <!-- CÓDIGO QR -->
                 <div class="qr-section">
                     <div id="qrcode"></div>
                 </div>
+                <div class="qr-note">Código QR - Escanea para más información</div>
                 
-                <!-- OBSERVACIÓN (si existe) -->
-                ${registro.observacion ? `
-                    <div class="observacion">
-                        <strong>📝 Observación:</strong> ${registro.observacion}
-                    </div>
-                ` : ''}
+                ${registro.observacion ? `<div style="margin-top:15px; padding:10px; background:#fff3cd; border-left:4px solid #ffd93d;">📝 ${registro.observacion}</div>` : ''}
                 
-                <!-- FOOTER -->
                 <div class="footer">
-                    <p><strong>ALPHA DB</strong> - Alpha Data Base | Trazabilidad Textil en Tiempo Real</p>
+                    <p><strong>ALPHA DB</strong> - Alpha Data Base</p>
                     <div>ID: ${registro.id} | Impreso: ${new Date().toLocaleString()}</div>
                 </div>
             </div>
             
             <script>
                 new QRCode(document.getElementById("qrcode"), {
-                    text: ${JSON.stringify(qrData)},
+                    text: ${JSON.stringify(qrText)},
                     width: 150,
-                    height: 150
+                    height: 150,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
                 });
                 window.onload = () => setTimeout(() => window.print(), 1000);
             <\/script>
@@ -1495,3 +1440,5 @@ window.imprimirRegistroIndividual = imprimirRegistroIndividual;
 window.eliminarRegistro = eliminarRegistro;
 window.abrirModalSeleccionRegistro = abrirModalSeleccionRegistro;
 window.getProcesoColor = getProcesoColor;
+window.agregarGrupoColor = agregarGrupoColor;
+window.eliminarGrupoColor = eliminarGrupoColor;
