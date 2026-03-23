@@ -210,12 +210,19 @@
     </div>
 
     <div id="modalHistorial" class="modal">
-        <div class="modal-content">
-            <div class="modal-header"><h3>HISTORIAL DE EDICIONES</h3><button class="modal-close">✕</button></div>
-            <div class="modal-body"><div id="historialContainer"></div></div>
-            <div class="modal-footer"><button class="modal-btn close-btn">CERRAR</button></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>HISTORIAL DE EDICIONES</h3>
+            <button class="modal-close" onclick="cerrarModalHistorial()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div id="historialContainer"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn close-btn" onclick="cerrarModalHistorial()">CERRAR</button>
         </div>
     </div>
+</div>
 
     <div id="modalImpresion" class="modal">
         <div class="modal-content">
