@@ -446,3 +446,56 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ==================== FUNCIONES GLOBALES PARA CERRAR MODALES ====================
+
+window.cerrarModalHistorial = function() {
+    const modal = document.getElementById('modalHistorial');
+    if (modal) {
+        modal.classList.remove('show');
+        console.log('✅ Modal historial cerrado');
+    } else {
+        console.log('⚠️ Modal historial no encontrado');
+    }
+};
+
+window.cerrarModalImpresion = function() {
+    const modal = document.getElementById('modalImpresion');
+    if (modal) {
+        modal.classList.remove('show');
+        console.log('✅ Modal impresión cerrado');
+    }
+};
+
+window.cerrarTodosModales = function() {
+    const modales = document.querySelectorAll('.modal');
+    modales.forEach(modal => {
+        modal.classList.remove('show');
+    });
+    console.log('✅ Todos los modales cerrados');
+};
+
+// También agregar función para cerrar haciendo clic en la X o botón CERRAR
+document.addEventListener('DOMContentLoaded', function() {
+    // Botones de cierre dentro de modales
+    const closeButtons = document.querySelectorAll('.modal-close, .close-btn, .cancel-btn');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const modal = this.closest('.modal');
+            if (modal) {
+                modal.classList.remove('show');
+                console.log('✅ Modal cerrado:', modal.id);
+            }
+        });
+    });
+    
+    // Cerrar al hacer clic fuera del modal
+    window.addEventListener('click', function(e) {
+        if (e.target.classList && e.target.classList.contains('modal')) {
+            e.target.classList.remove('show');
+            console.log('✅ Modal cerrado por clic fuera');
+        }
+    });
+});
