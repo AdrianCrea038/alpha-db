@@ -173,14 +173,14 @@ function configurarEventos() {
             const exito = await RegistrosModule.guardar(datos);
             if (exito) {
                 guardarDatosLocal();
-                if (FormularioUI) FormularioUI.reset();
+                if (FormularioUI && FormularioUI.reset) FormularioUI.reset();
                 if (TablaUI) TablaUI.actualizar();
             }
         });
     }
     
     const cancelEdit = document.getElementById('cancelEditBtn');
-    if (cancelEdit && FormularioUI) {
+    if (cancelEdit && FormularioUI && FormularioUI.reset) {
         cancelEdit.addEventListener('click', () => FormularioUI.reset());
     }
     
@@ -223,8 +223,8 @@ function configurarEventos() {
                                 await window.SupabaseClient.guardarRegistro(reg);
                             }
                         }
-                        FormularioUI.reset();
-                        TablaUI.actualizar();
+                        if (FormularioUI && FormularioUI.reset) FormularioUI.reset();
+                        if (TablaUI) TablaUI.actualizar();
                         Notifications.success(`📂 Cargados ${AppState.registros.length} registros`);
                     }
                 } catch(error) { Notifications.error('Archivo inválido'); }
@@ -235,12 +235,12 @@ function configurarEventos() {
     }
     
     const exportarExcel = document.getElementById('exportarExcelBtn');
-    if (exportarExcel && ExcelModule) {
+    if (exportarExcel && ExcelModule && ExcelModule.exportar) {
         exportarExcel.addEventListener('click', () => ExcelModule.exportar());
     }
     
     const imprimirReportes = document.getElementById('imprimirReportesBtn');
-    if (imprimirReportes && ImpresionModule) {
+    if (imprimirReportes && ImpresionModule && ImpresionModule.imprimirReporte) {
         imprimirReportes.addEventListener('click', () => ImpresionModule.imprimirReporte());
     }
     
@@ -273,6 +273,7 @@ window.editarRegistro = (id) => {
     if (FormularioUI && FormularioUI.cargarParaEdicion) {
         FormularioUI.cargarParaEdicion(id);
     } else {
+        console.error('FormularioUI no disponible');
         Notifications.error('Error al editar');
     }
 };
