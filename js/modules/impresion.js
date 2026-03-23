@@ -43,14 +43,16 @@ const ImpresionModule = {
                     ${historial.map(function(h, idx) {
                         const versionNum = idx + 2;
                         const descripcion = h.descripcion || 'Sin descripción';
+                        const motivo = h.motivo || (descripcion.includes('reemplazo') ? '🔄 Reemplazo de material' : '✏️ Edición de datos');
                         return `
                             <div style="border-left: 3px solid #ffd93d; padding-left: 10px; margin-bottom: 12px; background: #f9f9f9; padding: 8px; border-radius: 6px;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                                     <strong style="color: #ff6b6b;">v${versionNum}</strong>
                                     <span style="font-size: 9px; color: #666;">${new Date(h.fecha).toLocaleString()}</span>
                                 </div>
-                                <div style="margin-bottom: 5px;">📝 ${descripcion}</div>
-                                <div style="font-size: 9px; color: #888; display: flex; gap: 15px;">
+                                <div style="margin-bottom: 5px; font-weight: 500;">📝 ${descripcion}</div>
+                                <div style="margin-bottom: 5px; font-size: 10px; color: #ff9800;">🔍 Motivo: ${motivo}</div>
+                                <div style="font-size: 9px; color: #888; display: flex; gap: 15px; flex-wrap: wrap;">
                                     <span>⬅️ ANTERIOR: ${h.anterior.po} (v${h.anterior.version})</span>
                                     <span>➡️ NUEVO: ${h.nuevo.po} (v${h.nuevo.version})</span>
                                 </div>
@@ -101,15 +103,13 @@ const ImpresionModule = {
             margin-bottom: 15px;
         }
         .header h1 { 
-            font-size: 24px; 
+            font-size: 28px; 
             font-weight: 800; 
             letter-spacing: 2px; 
             margin: 0;
-            background: linear-gradient(135deg, #ff6b6b, #ffd93d);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
+        .header h1 .alpha { color: #000000; }
+        .header h1 .orange { color: #ff6b00; }
         .po-destacado { font-size: 22px; font-weight: 900; text-align: right; }
         .version-destacado { font-size: 18px; font-weight: 900; color: #ff0000; text-align: right; }
         .info-grid {
@@ -187,7 +187,11 @@ const ImpresionModule = {
 <body>
     <div class="etiqueta">
         <div class="header">
-            <h1>⚡ ALPHA DB</h1>
+            <h1>
+                <span class="alpha">ALPHA</span>
+                <span class="orange">O</span>
+                <span class="alpha"> DB</span>
+            </h1>
             <div>
                 <div class="po-destacado">${registro.po || 'S/PO'}</div>
                 <div class="version-destacado">v${registro.version || 1}</div>
@@ -284,6 +288,8 @@ const ImpresionModule = {
     <style>
         body { font-family: 'Rubik', Arial, sans-serif; margin: 0.5in; }
         h1 { color: #000; text-align: center; }
+        h1 .alpha { color: #000000; }
+        h1 .orange { color: #ff6b00; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
         th { background: #000; color: white; padding: 6px; text-align: left; }
         td { padding: 4px; border-bottom: 1px solid #ccc; }
@@ -294,42 +300,47 @@ const ImpresionModule = {
     </style>
 </head>
 <body>
-    <h1>⚡ ALPHA DB - REPORTE COMPLETO</h1>
+    <h1>
+        <span class="alpha">ALPHA</span>
+        <span class="orange">O</span>
+        <span class="alpha"> DB</span>
+        <span> - REPORTE COMPLETO</span>
+    </h1>
     <p>Fecha de impresión: ${new Date().toLocaleString()}</p>
     <p>Total de registros: ${registrosFiltrados.length}</p>
-    <table>
+     <table>
         <thead>
-            <tr>
+             <tr>
                 <th>PO</th><th>V</th><th>Proceso</th><th>Reemp</th><th>Sem</th>
                 <th>Fecha</th><th>Estilo</th><th>Tela</th>
                 <th>N°Monti</th><th>T°M</th><th>Vel</th><th>T°F</th><th>T/F</th>
-            </tr>
+             </tr>
         </thead>
         <tbody>`;
         
         for (var i = 0; i < registrosFiltrados.length; i++) {
             var reg = registrosFiltrados[i];
             html += `
-                <tr>
-                    <td>${reg.po || '-'}</td>
-                    <td>v${reg.version || 1}</td>
-                    <td>${reg.proceso || '-'}</td>
-                    <td>${reg.es_reemplazo ? 'Sí' : 'No'}</td>
-                    <td>${reg.semana}</td>
-                    <td>${Utils.formatearFecha(reg.fecha)}</td>
-                    <td>${reg.estilo || '-'}</td>
-                    <td>${reg.tela || '-'}</td>
-                    <td>${reg.monti_numero || 0}</td>
-                    <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
-                    <td>${(reg.velocidad_monti || 0).toFixed(1)}</td>
-                    <td>${(reg.temperatura_flat || 0).toFixed(1)}°</td>
-                    <td>${(reg.tiempo_flat || 0).toFixed(1)}s</td>
-                </tr>`;
+                 <tr>
+                     <td>${reg.po || '-'}</td>
+                     <td>v${reg.version || 1}</td>
+                     <td>${reg.proceso || '-'}</td>
+                     <td>${reg.es_reemplazo ? 'Sí' : 'No'}</td>
+                     <td>${reg.semana}</td>
+                     <td>${Utils.formatearFecha(reg.fecha)}</td>
+                     <td>${reg.estilo || '-'}</td>
+                     <td>${reg.tela || '-'}</td>
+                     <td>${reg.monti_numero || 0}</td>
+                     <td>${(reg.temperatura_monti || 0).toFixed(1)}°</td>
+                     <td>${(reg.velocidad_monti || 0).toFixed(1)}</td>
+                     <td>${(reg.temperatura_flat || 0).toFixed(1)}°</td>
+                     <td>${(reg.tiempo_flat || 0).toFixed(1)}s</td>
+                 </tr>`;
         }
         
         html += `
         </tbody>
-    </table>
+     </table>
     <div class="total">Total: ${registrosFiltrados.length} registros</div>
     <script>window.onload = function() { window.print(); };<\/script>
 </body>
