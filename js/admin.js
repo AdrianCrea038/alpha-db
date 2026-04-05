@@ -1,6 +1,6 @@
 // ============================================================
 // js/admin.js - Administración de usuarios y roles
-// Versión con GESTIÓN DE METAS DE PRODUCCIÓN
+// Versión: Con Supabase - Guarda usuarios en la nube
 // ============================================================
 
 const AdminModule = {
@@ -8,8 +8,9 @@ const AdminModule = {
     procesosDisponibles: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'],
     metasProduccion: {},
     avanceProduccion: {},
+    sincronizando: false,
     
-    init: function() {
+    init: async function() {
         console.log('🚀 Iniciando AdminModule...');
         
         const usuarioActual = this.getUsuarioActual();
@@ -21,7 +22,7 @@ const AdminModule = {
             return;
         }
         
-        this.cargarUsuarios();
+        await this.cargarUsuarios();
         this.cargarMetasProduccion();
         this.actualizarEstadisticas();
         this.renderizarTabla();
@@ -55,6 +56,97 @@ const AdminModule = {
     },
     
     // ============================================================
+    // USUARIOS CON SUPABASE
+    // ============================================================
+    
+    cargarUsuarios: async function() {
+        // Mostrar loader
+        this.mostrarLoader(true);
+        
+        try {
+            // Intentar cargar desde Supabase
+            if (window.SupabaseClient && window.SupabaseClient.init()) {
+                const usuariosDB = await window.SupabaseClient.getUsuarios();
+                if (usuariosDB && usuariosDB.length > 0) {
+                    this.usuarios = usuariosDB;
+                    localStorage.setItem('alpha_db_usuarios', JSON.stringify(usuariosDB));
+                    console.log('📦 Usuarios cargados desde Supabase:', this.usuarios.length);
+                    this.mostrarLoader(false);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error cargando usuarios desde Supabase:', error);
+        }
+        
+        // Fallback a localStorage
+        const usuariosGuardados = localStorage.getItem('alpha_db_usuarios');
+        if (usuariosGuardados) {
+            this.usuarios = JSON.parse(usuariosGuardados);
+            console.log('📦 Usuarios cargados desde localStorage:', this.usuarios.length);
+        } else {
+            this.usuarios = [
+                { id: '1', username: 'ADMIN', password: 'admin123', rol: 'admin', procesos_asignados: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'], creado: new Date().toISOString() },
+                { id: '2', username: 'OPERADOR', password: 'operador123', rol: 'operador', procesos_asignados: ['DISEÑO'], creado: new Date().toISOString() },
+                { id: '3', username: 'CONSULTOR', password: 'consultor123', rol: 'consultor', procesos_asignados: [], creado: new Date().toISOString() },
+                { id: '4', username: 'TRACKING', password: 'tracking123', rol: 'usuario_tracking', procesos_asignados: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'], creado: new Date().toISOString() }
+            ];
+            this.guardarUsuariosLocal();
+        }
+        
+        this.mostrarLoader(false);
+    },
+    
+    guardarUsuariosLocal: function() {
+        localStorage.setItem('alpha_db_usuarios', JSON.stringify(this.usuarios));
+    },
+    
+    guardarUsuariosEnSupabase: async function() {
+        if (this.sincronizando) return;
+        this.sincronizando = true;
+        
+        try {
+            if (window.SupabaseClient && window.SupabaseClient.init()) {
+                for (const usuario of this.usuarios) {
+                    await window.SupabaseClient.guardarUsuario(usuario);
+                }
+                console.log('✅ Usuarios sincronizados con Supabase');
+            }
+        } catch (error) {
+            console.error('Error guardando usuarios en Supabase:', error);
+        } finally {
+            this.sincronizando = false;
+        }
+        
+        this.guardarUsuariosLocal();
+    },
+    
+    guardarUsuarios: async function() {
+        this.guardarUsuariosLocal();
+        await this.guardarUsuariosEnSupabase();
+        
+        const usuarioActual = this.getUsuarioActual();
+        if (usuarioActual) {
+            const usuarioModificado = this.usuarios.find(u => u.id === usuarioActual.id);
+            if (usuarioModificado && usuarioModificado.username !== usuarioActual.username) {
+                const session = localStorage.getItem('alpha_db_session');
+                if (session) {
+                    const sessionData = JSON.parse(session);
+                    sessionData.username = usuarioModificado.username;
+                    localStorage.setItem('alpha_db_session', JSON.stringify(sessionData));
+                }
+            }
+        }
+    },
+    
+    mostrarLoader: function(mostrar) {
+        const tbody = document.getElementById('tablaUsuariosBody');
+        if (tbody && mostrar) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">🔄 Cargando usuarios desde la nube...</td></tr>';
+        }
+    },
+    
+    // ============================================================
     // METAS DE PRODUCCIÓN
     // ============================================================
     
@@ -68,23 +160,14 @@ const AdminModule = {
             } catch(e) {}
         }
         
-        // Valores por defecto si no existen
         const metasDefault = {
-            'DISEÑO': 500,
-            'PLOTTER': 450,
-            'SUBLIMADO': 400,
-            'FLAT': 350,
-            'LASER': 300,
-            'BORDADO': 250
+            'DISEÑO': 500, 'PLOTTER': 450, 'SUBLIMADO': 400,
+            'FLAT': 350, 'LASER': 300, 'BORDADO': 250
         };
         
         const avanceDefault = {
-            'DISEÑO': 500,
-            'PLOTTER': 380,
-            'SUBLIMADO': 320,
-            'FLAT': 280,
-            'LASER': 220,
-            'BORDADO': 180
+            'DISEÑO': 500, 'PLOTTER': 380, 'SUBLIMADO': 320,
+            'FLAT': 280, 'LASER': 220, 'BORDADO': 180
         };
         
         for (const proceso of this.procesosDisponibles) {
@@ -99,7 +182,6 @@ const AdminModule = {
             avance: this.avanceProduccion
         }));
         
-        // También actualizar el módulo de Tracking si está cargado
         if (window.TrackingModule) {
             if (window.TrackingModule.metasPorProceso) {
                 window.TrackingModule.metasPorProceso = { ...this.metasProduccion };
@@ -108,8 +190,6 @@ const AdminModule = {
                 window.TrackingModule.avancePorProceso = { ...this.avanceProduccion };
             }
         }
-        
-        console.log('Metas guardadas:', this.metasProduccion);
     },
     
     aplicarMetaBase: function() {
@@ -121,7 +201,7 @@ const AdminModule = {
             return;
         }
         
-        if (confirm(`¿Aplicar meta de ${metaBase} piezas a TODOS los procesos?\nEsto sobrescribirá las metas individuales.`)) {
+        if (confirm(`¿Aplicar meta de ${metaBase} piezas a TODOS los procesos?`)) {
             for (const proceso of this.procesosDisponibles) {
                 this.metasProduccion[proceso] = metaBase;
             }
@@ -140,7 +220,6 @@ const AdminModule = {
             const meta = this.metasProduccion[proceso] || 0;
             const avance = this.avanceProduccion[proceso] || 0;
             const porcentaje = meta > 0 ? Math.min(100, Math.round((avance / meta) * 100)) : 0;
-            
             let colorPorcentaje = '#FF4444';
             if (porcentaje >= 80) colorPorcentaje = '#00FF88';
             else if (porcentaje >= 50) colorPorcentaje = '#F59E0B';
@@ -148,13 +227,11 @@ const AdminModule = {
             html += `
                 <tr data-proceso="${proceso}">
                     <td><strong>${proceso}</strong></td>
-                    <td style="font-size: 1.2rem;">${this.getIconoProceso(proceso)}</td>
-                    <td>
-                        <input type="number" id="meta_${proceso}" value="${meta}" class="meta-input" step="10" min="0">
-                    </td>
+                    <td style="font-size:1.2rem;">${this.getIconoProceso(proceso)}</td>
+                    <td><input type="number" id="meta_${proceso}" value="${meta}" class="meta-input" step="10" min="0"></td>
                     <td>
                         <input type="number" id="avance_${proceso}" value="${avance}" class="meta-avance-input" step="10" min="0">
-                        <div style="margin-top: 4px; font-size: 0.65rem; color: ${colorPorcentaje};">${porcentaje}% cumplimiento</div>
+                        <div style="margin-top:4px; font-size:0.65rem; color:${colorPorcentaje};">${porcentaje}% cumplimiento</div>
                     </td>
                 </tr>
             `;
@@ -166,15 +243,9 @@ const AdminModule = {
         for (const proceso of this.procesosDisponibles) {
             const metaInput = document.getElementById(`meta_${proceso}`);
             const avanceInput = document.getElementById(`avance_${proceso}`);
-            
-            if (metaInput) {
-                this.metasProduccion[proceso] = parseInt(metaInput.value) || 0;
-            }
-            if (avanceInput) {
-                this.avanceProduccion[proceso] = parseInt(avanceInput.value) || 0;
-            }
+            if (metaInput) this.metasProduccion[proceso] = parseInt(metaInput.value) || 0;
+            if (avanceInput) this.avanceProduccion[proceso] = parseInt(avanceInput.value) || 0;
         }
-        
         this.guardarMetasProduccion();
         this.renderizarTablaMetas();
         alert('✅ Metas de producción guardadas correctamente');
@@ -196,58 +267,22 @@ const AdminModule = {
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tabId = btn.getAttribute('data-tab');
-                
                 tabBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                
                 tabPanes.forEach(pane => pane.classList.remove('active'));
-                
                 if (tabId === 'usuarios') {
                     document.getElementById('tabUsuarios').classList.add('active');
                 } else if (tabId === 'metas') {
                     document.getElementById('tabMetas').classList.add('active');
-                    this.renderizarTablaMetas(); // Refrescar al mostrar
+                    this.renderizarTablaMetas();
                 }
             });
         });
     },
     
     // ============================================================
-    // USUARIOS
+    // RENDERIZAR TABLA DE USUARIOS
     // ============================================================
-    
-    cargarUsuarios: function() {
-        const usuariosGuardados = localStorage.getItem('alpha_db_usuarios');
-        if (usuariosGuardados) {
-            this.usuarios = JSON.parse(usuariosGuardados);
-        } else {
-            this.usuarios = [
-                { id: '1', username: 'ADMIN', password: 'admin123', rol: 'admin', procesosAsignados: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'], creado: new Date().toISOString() },
-                { id: '2', username: 'OPERADOR', password: 'operador123', rol: 'operador', procesosAsignados: ['DISEÑO'], creado: new Date().toISOString() },
-                { id: '3', username: 'CONSULTOR', password: 'consultor123', rol: 'consultor', procesosAsignados: [], creado: new Date().toISOString() },
-                { id: '4', username: 'TRACKING', password: 'tracking123', rol: 'usuario_tracking', procesosAsignados: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'], creado: new Date().toISOString() }
-            ];
-            this.guardarUsuarios();
-        }
-        console.log('Usuarios cargados:', this.usuarios);
-    },
-    
-    guardarUsuarios: function() {
-        localStorage.setItem('alpha_db_usuarios', JSON.stringify(this.usuarios));
-        
-        const usuarioActual = this.getUsuarioActual();
-        if (usuarioActual) {
-            const usuarioModificado = this.usuarios.find(u => u.id === usuarioActual.id);
-            if (usuarioModificado && usuarioModificado.username !== usuarioActual.username) {
-                const session = localStorage.getItem('alpha_db_session');
-                if (session) {
-                    const sessionData = JSON.parse(session);
-                    sessionData.username = usuarioModificado.username;
-                    localStorage.setItem('alpha_db_session', JSON.stringify(sessionData));
-                }
-            }
-        }
-    },
     
     actualizarEstadisticas: function() {
         const total = this.usuarios.length;
@@ -285,28 +320,14 @@ const AdminModule = {
             let rolText = '';
             
             switch(user.rol) {
-                case 'admin':
-                    rolClass = 'rol-admin';
-                    rolText = '👑 Administrador';
-                    break;
-                case 'operador':
-                    rolClass = 'rol-operador';
-                    rolText = '👤 Operador';
-                    break;
-                case 'usuario_tracking':
-                    rolClass = 'rol-usuario-tracking';
-                    rolText = '📍 Usuario Tracking';
-                    break;
-                case 'consultor':
-                    rolClass = 'rol-consultor';
-                    rolText = '👁️ Consultor';
-                    break;
-                default:
-                    rolClass = 'rol-operador';
-                    rolText = '👤 Usuario';
+                case 'admin': rolClass = 'rol-admin'; rolText = '👑 Administrador'; break;
+                case 'operador': rolClass = 'rol-operador'; rolText = '👤 Operador'; break;
+                case 'usuario_tracking': rolClass = 'rol-usuario-tracking'; rolText = '📍 Usuario Tracking'; break;
+                case 'consultor': rolClass = 'rol-consultor'; rolText = '👁️ Consultor'; break;
+                default: rolClass = 'rol-operador'; rolText = '👤 Usuario';
             }
             
-            const procesosStr = (user.procesosAsignados || []).join(', ') || 'Ninguno';
+            const procesosStr = (user.procesos_asignados || []).join(', ') || 'Ninguno';
             const fecha = new Date(user.creado).toLocaleDateString();
             
             html += `
@@ -383,7 +404,7 @@ const AdminModule = {
             passwordInput.value = '';
             passwordInput.placeholder = 'Nueva contraseña (dejar en blanco para no cambiar)';
             rolSelect.value = usuario.rol;
-            this.cargarCheckboxesProcesos(usuario.procesosAsignados || []);
+            this.cargarCheckboxesProcesos(usuario.procesos_asignados || []);
         } else {
             console.log('➕ Nuevo usuario');
             titulo.textContent = '➕ NUEVO USUARIO';
@@ -488,7 +509,7 @@ const AdminModule = {
         modal.classList.add('show');
     },
     
-    guardarPassword: function() {
+    guardarPassword: async function() {
         const userId = document.getElementById('passwordUserId').value;
         const newPassword = document.getElementById('newPassword').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
@@ -522,7 +543,7 @@ const AdminModule = {
             return;
         }
         
-        this.guardarUsuarios();
+        await this.guardarUsuarios();
         this.renderizarTabla();
         this.cerrarModalPassword();
         alert('✅ Contraseña actualizada correctamente');
@@ -549,7 +570,7 @@ const AdminModule = {
         }
     },
     
-    guardarUsuario: function() {
+    guardarUsuario: async function() {
         const editId = document.getElementById('editUserId').value;
         const nuevoNombre = document.getElementById('usuarioUsername').value.trim().toUpperCase();
         const nuevaPassword = document.getElementById('usuarioPassword').value;
@@ -557,10 +578,6 @@ const AdminModule = {
         const procesosAsignados = this.obtenerProcesosSeleccionados();
         
         console.log('=== GUARDANDO USUARIO ===');
-        console.log('editId:', editId);
-        console.log('nuevoNombre:', nuevoNombre);
-        console.log('nuevoRol:', nuevoRol);
-        console.log('procesosAsignados:', procesosAsignados);
         
         if (!nuevoNombre) {
             alert('⚠️ El nombre de usuario es obligatorio');
@@ -589,27 +606,22 @@ const AdminModule = {
             let encontrado = false;
             for (let i = 0; i < this.usuarios.length; i++) {
                 if (this.usuarios[i].id === editId) {
-                    console.log('✏️ Modificando usuario ANTES:', JSON.parse(JSON.stringify(this.usuarios[i])));
                     this.usuarios[i].username = nuevoNombre;
                     if (nuevaPassword && nuevaPassword.trim() !== '') {
                         this.usuarios[i].password = nuevaPassword;
                     }
                     this.usuarios[i].rol = nuevoRol;
-                    this.usuarios[i].procesosAsignados = procesosAsignados;
-                    console.log('✏️ Modificando usuario DESPUÉS:', this.usuarios[i]);
+                    this.usuarios[i].procesos_asignados = procesosAsignados;
                     encontrado = true;
                     break;
                 }
             }
-            
             if (!encontrado) {
                 alert('❌ Usuario no encontrado');
                 return;
             }
-            
-            this.guardarUsuarios();
+            await this.guardarUsuarios();
             alert(`✅ Usuario editado correctamente. Nuevo nombre: ${nuevoNombre}`);
-            
         } else {
             if (!nuevaPassword) {
                 alert('⚠️ La contraseña es obligatoria para nuevos usuarios');
@@ -625,11 +637,11 @@ const AdminModule = {
                 username: nuevoNombre,
                 password: nuevaPassword,
                 rol: nuevoRol,
-                procesosAsignados: procesosAsignados,
+                procesos_asignados: procesosAsignados,
                 creado: new Date().toISOString()
             };
             this.usuarios.push(nuevoUsuario);
-            this.guardarUsuarios();
+            await this.guardarUsuarios();
             alert(`✅ Usuario "${nuevoNombre}" creado correctamente`);
         }
         
@@ -648,15 +660,13 @@ const AdminModule = {
             }
         }
         if (usuario) {
-            console.log('Usuario encontrado para editar:', usuario);
             this.mostrarModal(usuario);
         } else {
-            console.error('Usuario no encontrado con ID:', id);
             alert('❌ Usuario no encontrado');
         }
     },
     
-    eliminarUsuario: function(id) {
+    eliminarUsuario: async function(id) {
         console.log('🗑️ Eliminar usuario ID:', id);
         let usuario = null;
         for (let i = 0; i < this.usuarios.length; i++) {
@@ -682,14 +692,8 @@ const AdminModule = {
         }
         
         if (confirm(`¿Eliminar al usuario "${usuario.username}"?`)) {
-            const nuevosUsuarios = [];
-            for (let i = 0; i < this.usuarios.length; i++) {
-                if (this.usuarios[i].id !== id) {
-                    nuevosUsuarios.push(this.usuarios[i]);
-                }
-            }
-            this.usuarios = nuevosUsuarios;
-            this.guardarUsuarios();
+            this.usuarios = this.usuarios.filter(u => u.id !== id);
+            await this.guardarUsuarios();
             this.actualizarEstadisticas();
             this.renderizarTabla();
             alert('✅ Usuario eliminado');
@@ -707,10 +711,11 @@ const AdminModule = {
     }
 };
 
+// Inicializar
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM cargado, inicializando AdminModule...');
     AdminModule.init();
 });
 
 window.AdminModule = AdminModule;
-console.log('✅ admin.js cargado - Con gestión de metas de producción');
+console.log('✅ admin.js cargado - Con Supabase para usuarios');
