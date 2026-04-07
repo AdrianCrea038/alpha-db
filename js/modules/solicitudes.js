@@ -1,13 +1,12 @@
 // ============================================================
 // js/modules/solicitudes.js - Módulo de Solicitudes
-// Tipos: Orden Nueva, Lote FTT, RH
-// Versión: Con NK (código alfanumérico de tela)
+// Versión: Guarda en Supabase
 // ============================================================
 
 const SolicitudesModule = {
     tipoSeleccionado: '',
     
-    init: function() {
+    init: async function() {
         console.log('📋 Módulo de Solicitudes iniciado');
         this.renderizar();
         this.configurarEventos();
@@ -51,7 +50,6 @@ const SolicitudesModule = {
                             </div>
                         </div>
                         
-                        <!-- Campos específicos de RH -->
                         <div id="rhFields" style="display: none;">
                             <div class="form-row-dos">
                                 <div class="form-group-card">
@@ -162,7 +160,7 @@ const SolicitudesModule = {
         return datos;
     },
     
-    guardarSolicitud: function(e) {
+    guardarSolicitud: async function(e) {
         e.preventDefault();
         
         if (!this.tipoSeleccionado) {
@@ -190,17 +188,41 @@ const SolicitudesModule = {
         datos.id = 'SOL-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4).toUpperCase();
         datos.creado = new Date().toISOString();
         
-        this.enviarABandejaEntrada(datos);
+        // 1. Guardar en Supabase
+        const supabaseExito = await this.guardarEnSupabase(datos);
         
+        // 2. Enviar a bandeja de entrada
+        await this.enviarABandejaEntrada(datos);
+        
+        if (supabaseExito) {
+            this.mostrarMensaje('✅ Solicitud enviada a la Bandeja de Entrada', 'success');
+        } else {
+            this.mostrarMensaje('⚠️ Solicitud guardada solo localmente (error de conexión)', 'warning');
+        }
+        
+        // Resetear formulario
         document.getElementById('solicitudForm')?.reset();
         document.getElementById('tipoSolicitudSelect').value = '';
         document.getElementById('formularioSolicitud').style.display = 'none';
         this.tipoSeleccionado = '';
-        
-        this.mostrarMensaje('✅ Solicitud enviada a la Bandeja de Entrada', 'success');
     },
     
-    enviarABandejaEntrada: function(solicitud) {
+    guardarEnSupabase: async function(solicitud) {
+        if (!window.SupabaseClient || !window.SupabaseClient.client) {
+            console.warn('⚠️ Supabase no disponible');
+            return false;
+        }
+        
+        try {
+            await window.SupabaseClient.guardarSolicitud(solicitud);
+            return true;
+        } catch (error) {
+            console.error('Error guardando en Supabase:', error);
+            return false;
+        }
+    },
+    
+    enviarABandejaEntrada: async function(solicitud) {
         const getTipoTexto = (tipo) => {
             const tipos = {
                 'orden_nueva': '📦 Orden Nueva',
@@ -231,6 +253,17 @@ const SolicitudesModule = {
             bandejaItem.telaProduccion = solicitud.telaProduccion;
         }
         
+        // Guardar en Supabase
+        if (window.SupabaseClient && window.SupabaseClient.client) {
+            try {
+                await window.SupabaseClient.guardarBandejaItem(bandejaItem);
+                console.log('📥 Solicitud enviada a bandeja en Supabase');
+            } catch (error) {
+                console.error('Error guardando bandeja en Supabase:', error);
+            }
+        }
+        
+        // Guardar también en localStorage como respaldo
         let bandejaItems = localStorage.getItem('alpha_db_bandeja_entrada');
         if (bandejaItems) {
             bandejaItems = JSON.parse(bandejaItems);
@@ -240,8 +273,6 @@ const SolicitudesModule = {
         
         bandejaItems.unshift(bandejaItem);
         localStorage.setItem('alpha_db_bandeja_entrada', JSON.stringify(bandejaItems));
-        
-        console.log('📥 Solicitud enviada a Bandeja de Entrada:', bandejaItem);
     },
     
     mostrarMensaje: function(mensaje, tipo) {
@@ -364,6 +395,11 @@ const SolicitudesModule = {
                 border: 1px solid #FF4444;
                 color: #FF4444;
             }
+            .solicitud-mensaje.warning {
+                background: rgba(245,158,11,0.1);
+                border: 1px solid #F59E0B;
+                color: #F59E0B;
+            }
             
             @media (max-width: 768px) {
                 .form-row-dos {
@@ -376,4 +412,4 @@ const SolicitudesModule = {
 };
 
 window.SolicitudesModule = SolicitudesModule;
-console.log('✅ SolicitudesModule cargado - Con NK (código alfanumérico de tela)');
+console.log('✅ SolicitudesModule cargado - Guarda en Supabase');
