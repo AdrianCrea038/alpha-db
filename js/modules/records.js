@@ -1,6 +1,6 @@
 // ============================================================
 // js/modules/records.js - CRUD de registros con estructura NK → COLORES
-// Versión: Guarda en Supabase con manejo de errores
+// Versión: Genera ID antes de guardar en Supabase
 // ============================================================
 
 const RecordsModule = {
@@ -18,16 +18,17 @@ const RecordsModule = {
         const usuarioActual = window.getUsuarioActual();
         const nombreUsuario = usuarioActual ? usuarioActual.username : 'Sistema';
         
-        if (editId && !datos.id) {
-            datos.id = editId;
-        }
+        // Si es nuevo registro, generar ID ahora (antes de cualquier operación)
+        let registroData = { ...datos, actualizado: ahora, version: 1, usuarioModifico: nombreUsuario };
         
-        const registroData = { 
-            ...datos, 
-            actualizado: ahora, 
-            version: 1,
-            usuarioModifico: nombreUsuario
-        };
+        if (editId) {
+            // Es edición: usar el ID existente
+            registroData.id = editId;
+        } else {
+            // Es nuevo: generar ID único
+            registroData.id = Utils.generarIdUnico();
+            console.log('🆕 Generado nuevo ID:', registroData.id);
+        }
         
         // Asegurar que nks sea un array
         if (!registroData.nks) registroData.nks = [];
@@ -45,13 +46,12 @@ const RecordsModule = {
                     return false;
                 }
                 
-                console.log('✅ Guardado en Supabase');
+                console.log('✅ Guardado en Supabase, ID:', registroData.id);
                 
                 // Actualizar AppState
                 if (editId) {
                     AppState.updateRegistro(editId, registroData);
                 } else {
-                    registroData.id = Utils.generarIdUnico();
                     AppState.addRegistro(registroData);
                 }
                 
@@ -69,7 +69,6 @@ const RecordsModule = {
             if (editId) {
                 AppState.updateRegistro(editId, registroData);
             } else {
-                registroData.id = Utils.generarIdUnico();
                 AppState.addRegistro(registroData);
             }
             guardarDatosLocal();
@@ -81,14 +80,12 @@ const RecordsModule = {
     eliminar: async function(id) {
         if (!confirm('¿Eliminar este registro?')) return false;
         
-        // Eliminar de Supabase si está disponible
         if (window.SupabaseClient && window.SupabaseClient.client) {
             try {
                 const { error } = await window.SupabaseClient.client
                     .from('registros')
                     .delete()
                     .eq('id', id);
-                
                 if (error) throw error;
                 console.log('🗑️ Eliminado de Supabase');
             } catch (error) {
@@ -98,7 +95,6 @@ const RecordsModule = {
             }
         }
         
-        // Eliminar de AppState y localStorage
         AppState.deleteRegistro(id);
         guardarDatosLocal();
         Notifications.success('🗑️ Registro eliminado');
@@ -185,10 +181,6 @@ const RecordsModule = {
         if (reg.observacion) setValor('observacion', reg.observacion);
     },
     
-    // ============================================================
-    // CARGAR DATOS PRE-LLENADOS DESDE REEMPLAZO (para bandeja)
-    // ============================================================
-    
     cargarDatosPrellenados: function(datos) {
         console.log('Cargando datos pre-llenados para reemplazo:', datos);
         
@@ -246,7 +238,6 @@ const RecordsModule = {
     }
 };
 
-// Función auxiliar para guardar en localStorage (fallback)
 function guardarDatosLocal() {
     if (!AppState) return;
     try {
@@ -265,4 +256,4 @@ function guardarDatosLocal() {
 }
 
 window.RecordsModule = RecordsModule;
-console.log('✅ RecordsModule actualizado - Guarda en Supabase con manejo de errores');
+console.log('✅ RecordsModule actualizado - Genera ID antes de guardar en Supabase');
