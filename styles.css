@@ -1952,3 +1952,411 @@ tbody tr:hover {
 .mb-1 { margin-bottom: 0.5rem; }
 .mb-2 { margin-bottom: 1rem; }
 .mb-3 { margin-bottom: 1.5rem; }
+/* ============================================================
+   ESTILOS PARA MÓDULO DE ÓRDENES (OrderImportModule)
+   ============================================================ */
+
+.ordenes-import-panel {
+    background: #161B22;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    animation: fadeIn 0.3s ease;
+}
+
+.ordenes-header h2 {
+    font-size: 1.1rem;
+    color: #00D4FF;
+    margin-bottom: 0.3rem;
+}
+
+.ordenes-header p {
+    font-size: 0.8rem;
+    color: #8B949E;
+    margin-bottom: 1.5rem;
+}
+
+.ordenes-upload-area {
+    margin-bottom: 1.5rem;
+}
+
+.upload-zone {
+    background: #0D1117;
+    border: 2px dashed rgba(0, 212, 255, 0.4);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-zone.drag-over {
+    border-color: #00D4FF;
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.upload-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.upload-text {
+    color: #8B949E;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.btn-seleccionar {
+    background: linear-gradient(90deg, #00D4FF, #0099CC);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    color: #0D1117;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.btn-seleccionar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+}
+
+.ordenes-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.25);
+    padding-bottom: 0.5rem;
+}
+
+.ordenes-tab-btn {
+    background: #21262D;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    color: #8B949E;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.ordenes-tab-btn.active {
+    background: linear-gradient(90deg, #00D4FF, #0099CC);
+    color: #0D1117;
+}
+
+.ordenes-tab-btn:hover:not(.active) {
+    background: #30363D;
+    color: #00D4FF;
+}
+
+.ordenes-filtros {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.ordenes-filtros input {
+    flex: 1;
+    background: #0D1117;
+    border: 1px solid #00D4FF;
+    border-radius: 8px;
+    padding: 0.5rem 0.8rem;
+    color: white;
+}
+
+.ordenes-tabla-container {
+    overflow-x: auto;
+}
+
+.ordenes-tabla {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ordenes-tabla th {
+    text-align: left;
+    padding: 0.8rem;
+    color: #00D4FF;
+    border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+    font-size: 0.75rem;
+}
+
+.ordenes-tabla td {
+    padding: 0.8rem;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+    font-size: 0.75rem;
+}
+
+.ordenes-tabla tr:hover {
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.nk-badge {
+    background: rgba(168, 85, 247, 0.2);
+    color: #A855F7;
+    padding: 0.2rem 0.5rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+}
+
+.btn-agregar-color {
+    background: linear-gradient(90deg, #00D4FF, #0099CC);
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    color: #0D1117;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+}
+
+.btn-agregar-color:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(0, 212, 255, 0.3);
+}
+
+.usado-badge {
+    background: rgba(0, 255, 136, 0.2);
+    color: #00FF88;
+    padding: 0.2rem 0.5rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+}
+
+.ordenes-vacio {
+    text-align: center;
+    padding: 2rem;
+    color: #8B949E;
+}
+
+/* Modal para agregar color */
+.modal-color-orden {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-color-orden-content {
+    background: #161B22;
+    border: 2px solid #00D4FF;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.modal-color-orden-content .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.modal-color-orden-content .modal-header h3 {
+    color: #00D4FF;
+    margin: 0;
+}
+
+.modal-close-btn {
+    background: #21262D;
+    border: 2px solid #00D4FF;
+    color: #00D4FF;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.modal-color-orden-content .modal-body {
+    padding: 1rem;
+}
+
+.info-fields {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    background: #0D1117;
+    padding: 0.8rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.info-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.info-field label {
+    font-size: 0.65rem;
+    color: #00D4FF;
+    font-weight: 600;
+}
+
+.info-field span {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: white;
+}
+
+.section-title {
+    font-size: 0.8rem;
+    color: #00D4FF;
+    font-weight: 700;
+    margin: 1rem 0 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.modal-color-grupo {
+    background: #0D1117;
+    border-radius: 8px;
+    padding: 0.8rem;
+    margin-bottom: 0.8rem;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.modal-color-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.modal-color-nombre {
+    flex: 1;
+    background: #0D1117;
+    border: 1px solid #00D4FF;
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    color: white;
+}
+
+.btn-eliminar-color-modal {
+    background: #21262D;
+    border: 1px solid #FF4444;
+    color: #FF4444;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.btn-eliminar-color-modal:hover {
+    background: #FF4444;
+    color: white;
+}
+
+.modal-color-valores {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.modal-color-valor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.modal-color-valor label {
+    font-size: 0.6rem;
+    color: #8B949E;
+    font-weight: 600;
+}
+
+.modal-color-valor input {
+    width: 60px;
+    background: #0D1117;
+    border: 1px solid #00D4FF;
+    border-radius: 4px;
+    padding: 0.2rem;
+    color: white;
+    text-align: center;
+}
+
+.btn-add-color-modal {
+    background: linear-gradient(90deg, #00D4FF, #0099CC);
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    font-size: 0.7rem;
+    color: #0D1117;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 0.5rem 0;
+}
+
+.form-row-modal {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    margin: 0.5rem 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-size: 0.65rem;
+    color: #00D4FF;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.btn-guardar-modal {
+    flex: 2;
+    background: linear-gradient(90deg, #00FF88, #00CC66);
+    border: none;
+    padding: 0.7rem;
+    border-radius: 8px;
+    color: #0D1117;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-cancelar-modal {
+    flex: 1;
+    background: #21262D;
+    border: 1px solid #FF4444;
+    color: #FF4444;
+    padding: 0.7rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+@media (max-width: 768px) {
+    .info-fields {
+        grid-template-columns: 1fr;
+    }
+    .form-row-modal {
+        grid-template-columns: 1fr;
+    }
+    .modal-color-valores {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

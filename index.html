@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     
     <!-- Configuración -->
     <script src="js/config/supabase.js"></script>
@@ -33,6 +34,7 @@
     <script src="js/modules/approvals.js"></script>
     <script src="js/modules/inbox.js"></script>
     <script src="js/modules/solicitudes.js"></script>
+    <script src="js/modules/order-import.js"></script>
     
     <!-- UI -->
     <script src="js/ui/table.js"></script>
@@ -88,6 +90,9 @@
             </div>
             <p class="subtitle">Alpha Data Base - Trazabilidad Textil en Tiempo Real</p>
         </header>
+
+        <!-- CONTENEDOR PARA MÓDULO DE ÓRDENES -->
+        <div id="ordenesImportPanel"></div>
 
         <!-- PANEL DE CONSULTAS -->
         <div id="consultasPanel" class="consultas-panel" style="background:#161B22; border-radius:12px; padding:1.2rem; margin-bottom:1.5rem; border:1px solid rgba(0,212,255,0.25); display:none;">
@@ -266,7 +271,7 @@
                     <thead>
                         <tr><th>PO</th><th>VER</th><th>PROCESO</th><th>REEMP</th><th>SEM</th><th>FECHA</th><th>ESTILO</th><th colspan="2">NK Y COLORES</th><th>PLOTTER</th><th>ADH</th><th>T°M</th><th>VEL</th><th>T°F</th><th>T/F</th><th>ACCIONES</th></tr>
                     </thead>
-                    <tbody id="tableBody"><tr><td colspan="18" class="loading">Cargando registros...</td></tr>
+                    <tbody id="tableBody"><tr><td colspan="18" class="loading">Cargando registros......</td</tr>
                 </tbody>
             </table>
             </div>
