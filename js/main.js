@@ -1,7 +1,27 @@
 // ============================================================
 // js/main.js - Punto de entrada principal
-// Versión: Detecta reemplazo pendiente desde bandeja
 // ============================================================
+
+// --- FUNCIONES GLOBALES DE CARGA (Lazy Loading) ---
+window.imprimirEtiqueta = function(id) {
+    if (window.PrintingModule) {
+        window.PrintingModule.imprimirEtiqueta(id);
+    } else {
+        console.error('PrintingModule no cargado');
+    }
+};
+
+window.exportarExcel = async function() {
+    if (!window.ExcelModule) {
+        try {
+            if (window.Notifications) Notifications.info('📥 Cargando Excel...');
+            await Utils.loadScript('js/modules/excel.js');
+            await new Promise(r => setTimeout(r, 150));
+        } catch (e) { return; }
+    }
+    if (window.ExcelModule) window.ExcelModule.exportar();
+};
+
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Iniciando Alpha DB v10.0...');
@@ -199,13 +219,19 @@ function configurarEventosUI() {
     }
     
     const exportarExcel = document.getElementById('exportarExcelBtn');
-    if (exportarExcel && window.ExcelModule) {
-        exportarExcel.addEventListener('click', () => window.ExcelModule.exportar());
+    if (exportarExcel) {
+        exportarExcel.addEventListener('click', () => window.exportarExcel());
     }
     
     const imprimirReportes = document.getElementById('imprimirReportesBtn');
-    if (imprimirReportes && window.PrintingModule) {
-        imprimirReportes.addEventListener('click', () => window.PrintingModule.imprimirReporte());
+    if (imprimirReportes) {
+        imprimirReportes.addEventListener('click', async () => {
+            if (!window.PrintingModule) {
+                if (window.Notifications) Notifications.info('📥 Cargando módulo de impresión...');
+                try { await Utils.loadScript('js/modules/printing.js'); } catch(e) { return; }
+            }
+            if (window.PrintingModule) window.PrintingModule.imprimirReporte();
+        });
     }
     
     const imprimirIndividual = document.getElementById('imprimirIndividualBtn');
@@ -417,6 +443,7 @@ window.eliminarRegistro = async (id) => {
         if (window.TableUI) TableUI.actualizar();
     }
 };
+
 
 window.verHistorial = (id) => {
     const reg = AppState.getRegistroById(id);

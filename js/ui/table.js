@@ -102,7 +102,7 @@ const TableUI = {
                                     `<button class="btn-icon prod" disabled style="padding:0.3rem 0.5rem; background:#161B22; border:1px solid #484F58; border-radius:4px; color:#484F58; cursor:not-allowed;" title="Ya está en Producción">✅</button>` :
                                     `<button class="btn-icon prod" onclick="window.mandarAProduccion(event, '${reg.id}')" style="padding:0.3rem 0.5rem; background:#00D4FF; border:none; border-radius:4px; color:#0D1117; cursor:pointer; font-weight:bold;" title="Mandar a Producción">🚀</button>`
                                 }
-                                <button class="btn-icon print" onclick="window.imprimirEtiqueta('${reg.id}')" style="padding:0.3rem 0.5rem; background:#21262D; border:1px solid #00D4FF; border-radius:4px; cursor:pointer;" title="Imprimir QR">📱</button>
+                                <button class="btn-icon print" onclick="window.imprimirEtiqueta('${reg.id}')" style="padding:0.3rem 0.5rem; background:#21262D; border:1px solid #00D4FF; border-radius:4px; cursor:pointer;" title="Imprimir QR">🖨️</button>
                                 ${puedeEliminar ? `<button class="btn-icon delete" onclick="window.eliminarRegistro('${reg.id}')" style="padding:0.3rem 0.5rem; background:#21262D; border:1px solid #FF4444; border-radius:4px; cursor:pointer;" title="Eliminar">🗑️</button>` : ''}
                             ` : ''}
                             <button class="btn-icon history" onclick="window.verHistorial('${reg.id}')" style="padding:0.3rem 0.5rem; background:#21262D; border:1px solid #00D4FF; border-radius:4px; cursor:pointer;" title="Historial">📋</button>

@@ -16,12 +16,36 @@ const Utils = {
     },
     
     formatearFecha: function(fechaStr) {
-        if (!fechaStr) return '';
-        const fecha = new Date(fechaStr);
-        const dia = fecha.getDate().toString().padStart(2, '0');
-        const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
-        const anio = fecha.getFullYear();
-        return `${dia}-${mes}-${anio}`;
+        if (!fechaStr) return '-';
+        try {
+            const fecha = new Date(fechaStr);
+            return fecha.toLocaleDateString();
+        } catch (e) { return fechaStr; }
+    },
+
+    /**
+     * Carga un archivo JS de forma dinámica y devuelve una promesa
+     * @param {string} url - Ruta del archivo
+     * @returns {Promise}
+     */
+    loadScript: function(url) {
+        return new Promise((resolve, reject) => {
+            // Si ya existe un script con esa URL, no lo cargamos de nuevo
+            if (document.querySelector(`script[src="${url}"]`)) {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = url;
+            script.async = true;
+            script.onload = () => {
+                console.log(`📦 Módulo cargado dinámicamente: ${url}`);
+                resolve();
+            };
+            script.onerror = () => reject(new Error(`Error cargando script: ${url}`));
+            document.head.appendChild(script);
+        });
     },
     
     safeToString: function(valor) {

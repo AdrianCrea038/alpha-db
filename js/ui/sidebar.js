@@ -6,16 +6,22 @@
 const Sidebar = {
     init: function() {
         if (window.location.pathname.includes('login.html')) return;
+        
+        console.log('🚀 Iniciando Sidebar...');
+        // 1. Crear el menú PRIMERO que nada
         this.crearMenu();
+        
+        // 2. Configurar eventos
         this.configurarEventos();
-        this.aplicarVistaInicial();
-        this.inicializarCalendario();
-        this.inicializarConsultas();
-        this.inicializarBaseDatosScanner();
+        
+        // 3. Lo demás envolverlo en try-catch para que no rompa el inicio
+        try { this.aplicarVistaInicial(); } catch(e) { console.warn('Sidebar: Error en vista inicial'); }
+        try { this.inicializarCalendario(); } catch(e) { console.warn('Sidebar: Error en calendario'); }
+        try { this.inicializarConsultas(); } catch(e) { console.warn('Sidebar: Error en consultas'); }
         
         setTimeout(() => {
             this.verificarPermisosMenu();
-        }, 100);
+        }, 200);
     },
     
     crearMenu: function() {
@@ -576,7 +582,7 @@ const Sidebar = {
 
     mostrarTracking: function() { this.mostrarConsulta(); },
 
-    mostrarConsulta: function() {
+    mostrarConsulta: async function() {
         const tieneAcceso = (window.puedeAccederConsultas && window.puedeAccederConsultas()) ||
                             (window.puedeAccederTracking && window.puedeAccederTracking());
         if (!tieneAcceso) {
@@ -598,6 +604,15 @@ const Sidebar = {
         
         if (window.TableUI && TableUI.setModo) TableUI.setModo('solo-lectura');
         
+        // Carga dinámica del tracking
+        if (!window.TrackingModule) {
+            try {
+                await Utils.loadScript('js/modules/tracking.js');
+            } catch (e) {
+                console.warn('No se pudo cargar el módulo de tracking');
+            }
+        }
+
         // Inicializar también el tracking dentro de la misma vista
         if (window.TrackingModule && TrackingModule.init) TrackingModule.init();
         
@@ -643,7 +658,7 @@ const Sidebar = {
         if (window.Notifications) Notifications.info('📋 Gestión de Solicitudes');
     },
     
-    mostrarAprobaciones: function() {
+    mostrarAprobaciones: async function() {
         if (!window.puedeAccederAprobaciones || !window.puedeAccederAprobaciones()) {
             if (window.Notifications) Notifications.error('❌ No tiene permisos para acceder a Aprobaciones');
             return;
@@ -656,6 +671,16 @@ const Sidebar = {
         const tableSection = document.querySelector('.table-section');
         if (tableSection) tableSection.style.display = 'none';
         
+        // Carga dinámica
+        if (!window.ApprovalsModule) {
+            try {
+                await Utils.loadScript('js/modules/approvals.js');
+            } catch (e) {
+                if (window.Notifications) Notifications.error('Error al cargar Aprobaciones');
+                return;
+            }
+        }
+
         if (window.ApprovalsModule && typeof ApprovalsModule.init === 'function') {
             ApprovalsModule.init();
         }
@@ -681,7 +706,7 @@ const Sidebar = {
         if (window.Notifications) Notifications.info('📥 Bandeja de Entrada');
     },
     
-    mostrarOrdenes: function() {
+    mostrarOrdenes: async function() {
         this.ocultarTodosLosPaneles();
         document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('btnOrdenes')?.classList.add('active');
@@ -689,6 +714,17 @@ const Sidebar = {
         const tableSection = document.querySelector('.table-section');
         if (tableSection) tableSection.style.display = 'none';
         
+        // Carga dinámica del módulo
+        if (!window.OrderImportModule) {
+            if (window.Notifications) Notifications.info('📥 Cargando módulo de órdenes...');
+            try {
+                await Utils.loadScript('js/modules/order-import.js');
+            } catch (e) {
+                if (window.Notifications) Notifications.error('Error al descargar el módulo');
+                return;
+            }
+        }
+
         // Crear contenedor si no existe
         let ordenesPanel = document.getElementById('ordenesImportPanel');
         if (!ordenesPanel) {
@@ -701,9 +737,6 @@ const Sidebar = {
         
         if (window.OrderImportModule && typeof OrderImportModule.init === 'function') {
             OrderImportModule.init();
-        } else {
-            console.error('OrderImportModule no cargado');
-            if (window.Notifications) Notifications.error('Error al cargar módulo de Órdenes');
         }
         
         if (window.Notifications) Notifications.info('📂 Módulo de Carga de Órdenes');
