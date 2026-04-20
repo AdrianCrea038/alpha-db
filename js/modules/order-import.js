@@ -77,9 +77,16 @@ const OrderImportModule = {
                     </div>
                 </div>
                 
-                <div class="ordenes-tabs">
-                    <button class="ordenes-tab-btn active" data-tab="pendientes">📋 PENDIENTES (${ordenesPendientes.length})</button>
-                    <button class="ordenes-tab-btn" data-tab="usadas">✅ USADAS (${ordenesUsadas.length})</button>
+                <div class="ordenes-tabs" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <button class="ordenes-tab-btn active" data-tab="pendientes">📋 PENDIENTES (${ordenesPendientes.length})</button>
+                        <button class="ordenes-tab-btn" data-tab="usadas">✅ USADAS (${ordenesUsadas.length})</button>
+                    </div>
+                    ${ordenesPendientes.length > 0 ? `
+                        <button id="btnLimpiarSinColor" class="btn-limpiar" style="background: #21262D; border: 1px solid #FF4444; color: #FF4444; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 700; transition: all 0.3s;">
+                            🧹 LIMPIAR SIN COLOR
+                        </button>
+                    ` : ''}
                 </div>
                 
                 <div id="tabPendientes" class="ordenes-tab-pane active">
@@ -146,36 +153,73 @@ const OrderImportModule = {
                 tab.classList.add('active');
                 document.getElementById('tabPendientes').style.display = tabId === 'pendientes' ? 'block' : 'none';
                 document.getElementById('tabUsadas').style.display = tabId === 'usadas' ? 'block' : 'none';
+                
+                // Mostrar/ocultar botón de limpieza
+                const btnLimpiar = document.getElementById('btnLimpiarSinColor');
+                if (btnLimpiar) btnLimpiar.style.display = tabId === 'pendientes' ? 'block' : 'none';
             });
         });
-        
-        const filtroPendientes = document.getElementById('filtroPo_pendiente');
-        const btnFiltrarPendientes = document.getElementById('btnFiltrar_pendiente');
-        if (filtroPendientes && btnFiltrarPendientes) {
-            btnFiltrarPendientes.addEventListener('click', () => this.filtrarTabla('pendiente', filtroPendientes.value));
-            filtroPendientes.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.filtrarTabla('pendiente', filtroPendientes.value);
-            });
+
+        // Evento para limpiar sin color
+        const btnLimpiar = document.getElementById('btnLimpiarSinColor');
+        if (btnLimpiar) {
+            btnLimpiar.onclick = () => this.limpiarOrdenesSinColor();
         }
-        
-        const filtroUsadas = document.getElementById('filtroPo_usada');
-        const btnFiltrarUsadas = document.getElementById('btnFiltrar_usada');
-        if (filtroUsadas && btnFiltrarUsadas) {
-            btnFiltrarUsadas.addEventListener('click', () => this.filtrarTabla('usada', filtroUsadas.value));
-            filtroUsadas.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.filtrarTabla('usada', filtroUsadas.value);
-            });
+    },
+
+    limpiarOrdenesSinColor: async function() {
+        const pendientes = this.ordenes.filter(o => !o.usado);
+        if (pendientes.length === 0) return;
+
+        const confirmacion = confirm(`¿Estás seguro de eliminar ${pendientes.length} órdenes que no tienen color asignado?`);
+        if (!confirmacion) return;
+
+        const motivo = prompt('MANDATORIO: Escribe el motivo de la limpieza (Este comentario se enviará a la bandeja):');
+        if (!motivo || motivo.trim() === '') {
+            if (window.Notifications) Notifications.warning('⚠️ Debes escribir un motivo para proceder');
+            return;
         }
-        
-        document.querySelectorAll('.btn-agregar-color').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                const po = btn.getAttribute('data-po');
-                const nk = btn.getAttribute('data-nk');
-                const make = btn.getAttribute('data-make');
-                this.mostrarModalColor(id, po, nk, make);
-            });
-        });
+
+        try {
+            if (window.Notifications) Notifications.info('🧹 Limpiando órdenes...');
+            
+            // 1. Eliminar de Supabase
+            if (window.SupabaseClient && window.SupabaseClient.client) {
+                const ids = pendientes.map(o => o.id);
+                const { error } = await window.SupabaseClient.client
+                    .from('ordenes_importadas')
+                    .delete()
+                    .in('id', ids);
+                
+                if (error) throw error;
+            }
+
+            // 2. Generar notificación en la bandeja
+            const usuario = window.getUsuarioActual ? window.getUsuarioActual().username : 'Usuario';
+            const mensajeNotif = `🧹 LIMPIEZA DE ÓRDENES: Se eliminaron ${pendientes.length} órdenes sin color.\nMotivo: ${motivo}\nResponsable: ${usuario}`;
+            
+            if (window.SupabaseClient && window.SupabaseClient.client) {
+                await window.SupabaseClient.client
+                    .from('notificaciones')
+                    .insert({
+                        mensaje: mensajeNotif,
+                        tipo: 'limpieza',
+                        leida: false,
+                        creado: new Date().toISOString()
+                    });
+            }
+
+            // 3. Actualizar localmente
+            this.ordenes = this.ordenes.filter(o => o.usado);
+            this.guardarLocal();
+            this.renderizar();
+
+            if (window.Notifications) Notifications.success('✅ Órdenes limpiadas correctamente');
+
+        } catch (error) {
+            console.error('Error limpiando órdenes:', error);
+            if (window.Notifications) Notifications.error('❌ Error al limpiar las órdenes');
+        }
     },
     
     filtrarTabla: function(tipo, termino) {
@@ -602,6 +646,34 @@ const OrderImportModule = {
     },
     
     configurarEventos: function() {
+        const filtroPendientes = document.getElementById('filtroPo_pendiente');
+        const btnFiltrarPendientes = document.getElementById('btnFiltrar_pendiente');
+        if (filtroPendientes && btnFiltrarPendientes) {
+            btnFiltrarPendientes.addEventListener('click', () => this.filtrarTabla('pendiente', filtroPendientes.value));
+            filtroPendientes.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.filtrarTabla('pendiente', filtroPendientes.value);
+            });
+        }
+        
+        const filtroUsadas = document.getElementById('filtroPo_usada');
+        const btnFiltrarUsadas = document.getElementById('btnFiltrar_usada');
+        if (filtroUsadas && btnFiltrarUsadas) {
+            btnFiltrarUsadas.addEventListener('click', () => this.filtrarTabla('usada', filtroUsadas.value));
+            filtroUsadas.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.filtrarTabla('usada', filtroUsadas.value);
+            });
+        }
+        
+        document.querySelectorAll('.btn-agregar-color').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                const po = btn.getAttribute('data-po');
+                const nk = btn.getAttribute('data-nk');
+                const make = btn.getAttribute('data-make');
+                this.mostrarModalColor(id, po, nk, make);
+            });
+        });
+        
         console.log('✅ Eventos del módulo de órdenes configurados');
     },
     
