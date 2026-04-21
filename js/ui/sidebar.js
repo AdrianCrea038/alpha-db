@@ -550,32 +550,45 @@ const Sidebar = {
     },
     
     mostrarBaseDatos: function() {
-        if (!window.puedeAccederBaseDatos || !window.puedeAccederBaseDatos()) {
-            if (window.Notifications) Notifications.error('❌ No tiene permisos para acceder a Base de Datos');
-            return;
+        console.log('--- 🗄️ MOSTRANDO BASE DE DATOS ---');
+        try {
+            if (!window.puedeAccederBaseDatos || !window.puedeAccederBaseDatos()) {
+                if (window.Notifications) Notifications.error('❌ No tiene permisos');
+                return;
+            }
+            
+            // 1. Limpieza absoluta de otros módulos
+            this.ocultarTodosLosPaneles();
+            document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
+            const btnDB = document.getElementById('btnBaseDatos');
+            if (btnDB) btnDB.classList.add('active');
+            
+            // 2. Mostrar secciones principales
+            const formSection = document.querySelector('.form-section');
+            const filtersSection = document.querySelector('.filters-section');
+            const tableSection = document.querySelector('.table-section');
+            
+            const puedeVerForm = window.puedeVerFormulario && window.puedeVerFormulario();
+            
+            if (formSection) formSection.style.display = puedeVerForm ? 'block' : 'none';
+            if (filtersSection) filtersSection.style.display = 'block';
+            if (tableSection) tableSection.style.display = 'block';
+
+            // 3. Renderizado de datos
+            if (window.TableUI) {
+                TableUI.setModo('completo');
+                TableUI.actualizar();
+            }
+            
+            if (window.AppState) AppState.limpiarFiltros();
+            this.actualizarCalendario();
+            
+            window.scrollTo(0, 0);
+            console.log('✅ Vista de Base de Datos cargada correctamente');
+
+        } catch (error) {
+            console.error('Error al mostrar base de datos:', error);
         }
-        
-        this.ocultarTodosLosPaneles();
-        document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('btnBaseDatos')?.classList.add('active');
-        
-        const formSection = document.querySelector('.form-section');
-        const filtersSection = document.querySelector('.filters-section');
-        const tableSection = document.querySelector('.table-section');
-        const consultasPanel = document.getElementById('consultasPanel');
-        
-        const puedeVerForm = window.puedeVerFormulario && window.puedeVerFormulario();
-        if (formSection) formSection.style.display = puedeVerForm ? 'block' : 'none';
-        
-        if (filtersSection) filtersSection.style.display = 'block';
-        if (tableSection) tableSection.style.display = 'block';
-        if (consultasPanel) consultasPanel.style.display = 'none';
-        
-        if (window.TableUI && TableUI.setModo) TableUI.setModo('completo');
-        AppState.limpiarFiltros();
-        this.actualizarCalendario();
-        if (window.TableUI && TableUI.actualizar) TableUI.actualizar();
-        if (window.Notifications) Notifications.info('🗄️ Vista de Base de Datos');
     },
     
     mostrarConsultas: function() { this.mostrarConsulta(); },
@@ -743,35 +756,27 @@ const Sidebar = {
     },
     
     ocultarTodosLosPaneles: function() {
-        const formSection = document.querySelector('.form-section');
-        if (formSection) formSection.style.display = 'none';
+        // Secciones fijas
+        const sections = ['.form-section', '.filters-section', '.table-section', '#consultasPanel', '#calendarioPanel'];
+        sections.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) el.style.display = 'none';
+        });
         
-        const filtersSection = document.querySelector('.filters-section');
-        if (filtersSection) filtersSection.style.display = 'none';
+        // Paneles dinámicos (Remover del DOM)
+        const dynamicPanels = [
+            'trackingPanel', 'solicitudesPanel', 'aprobacionesPanel', 
+            'inboxPanel', 'productionPanel', 'ordenesImportPanel', 
+            'proximamentePanel', 'modalParametrosProduccion'
+        ];
         
-        const consultasPanel = document.getElementById('consultasPanel');
-        if (consultasPanel) consultasPanel.style.display = 'none';
-        
-        const trackingPanel = document.getElementById('trackingPanel');
-        if (trackingPanel) trackingPanel.remove();
-        
-        const solicitudesPanel = document.getElementById('solicitudesPanel');
-        if (solicitudesPanel) solicitudesPanel.remove();
-        
-        const aprobacionesPanel = document.getElementById('aprobacionesPanel');
-        if (aprobacionesPanel) aprobacionesPanel.remove();
-        
-        const inboxPanel = document.getElementById('inboxPanel');
-        if (inboxPanel) inboxPanel.remove();
-        
-        const productionPanel = document.getElementById('productionPanel');
-        if (productionPanel) productionPanel.remove();
+        dynamicPanels.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
 
-        const ordenesPanel = document.getElementById('ordenesImportPanel');
-        if (ordenesPanel) ordenesPanel.remove();
-        
-        const proximamentePanel = document.getElementById('proximamentePanel');
-        if (proximamentePanel) proximamentePanel.remove();
+        // Limpiar cualquier otro modal de producción que use la clase modal-parametros
+        document.querySelectorAll('.modal-parametros').forEach(m => m.remove());
     },
     
     mostrarMensajeProximamente: function(titulo) {

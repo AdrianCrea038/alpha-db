@@ -103,15 +103,22 @@ const SupabaseClient = {
     guardarUsuario: async function(usuario) {
         if (!this.init()) return null;
         try {
+            console.log('📡 Intentando guardar usuario en Supabase:', usuario.username);
             const { data, error } = await this.client
                 .from('usuarios')
                 .upsert(usuario)
                 .select();
-            if (error) throw error;
+            
+            if (error) {
+                console.error('❌ Error de Supabase al guardar usuario:', error);
+                throw error;
+            }
+            
+            console.log('✅ Usuario guardado exitosamente en Supabase');
             return data;
         } catch (error) {
             console.error('Error en guardarUsuario:', error);
-            return null;
+            throw error; // Propagar el error para que el llamador lo maneje
         }
     },
     

@@ -239,12 +239,22 @@ const ProductionModule = {
                         <label style="color: #8B949E; font-size: 0.7rem; display: block; margin-bottom: 0.4rem;">HUMEDAD (%)</label>
                         <input type="number" id="param_hum" placeholder="Ej: 45" style="width: 100%; background: #0D1117; border: 1px solid #30363D; color: white; padding: 0.8rem; border-radius: 8px;">
                     </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="color: #8B949E; font-size: 0.7rem; display: block; margin-bottom: 0.4rem;">NÚMERO DE PLOTTER</label>
+                        <select id="param_plotter" style="width: 100%; background: #0D1117; border: 1px solid #30363D; color: white; padding: 0.8rem; border-radius: 8px;">
+                            ${Array.from({length: 17}, (_, i) => `<option value="${i+1}">Plotter #${i+1}</option>`).join('')}
+                        </select>
+                    </div>
                     <div style="margin-bottom: 2rem;">
-                        <label style="color: #8B949E; font-size: 0.7rem; display: block; margin-bottom: 0.4rem;">PERFIL</label>
+                        <label style="color: #8B949E; font-size: 0.7rem; display: block; margin-bottom: 0.4rem;">PERFIL DE IMPRESIÓN</label>
                         <select id="param_perfil" style="width: 100%; background: #0D1117; border: 1px solid #30363D; color: white; padding: 0.8rem; border-radius: 8px;">
-                            <option value="ESTÁNDAR">Estándar</option>
-                            <option value="ALTA SATURACIÓN">Alta Saturación</option>
-                            <option value="FOTOGRÁFICO">Fotográfico</option>
+                            <option value="BEMIS MS JP12 8C (2) 4 PASS K08 R2R 5260">1. BEMIS MS JP12 8C (2) 4 PASS K08 R2R 5260</option>
+                            <option value="JP12 8C (B2) 4 PASS SPC FLAT NEW 2025 PRODUCCION">2. JP12 8C (B2) 4 PASS SPC FLAT NEW 2025 PRODUCCION</option>
+                            <option value="MS BEMIS NFL JP4#15 8C (B2) 4 Pass K08 R2R 5260 Desarrollo">3. MS BEMIS NFL JP4#15 8C (B2) 4 Pass K08 R2R 5260 Desarrollo</option>
+                            <option value="BEMIS MSJP4#12 8C (B2) 4 Pass S10 SPC R2R">4. BEMIS MSJP4#12 8C (B2) 4 Pass S10 SPC R2R</option>
+                            <option value="JP4#12 8C (B2) 4 Pass spc FALT NEW 2025 PRODUCCION">5. JP4#12 8C (B2) 4 Pass spc FALT NEW 2025 PRODUCCION</option>
+                            <option value="JP4#12 8C (B2) 4 Pass SPC R2R GRILL NEW 2025">6. JP4#12 8C (B2) 4 Pass SPC R2R GRILL NEW 2025</option>
+                            <option value="RECUT TWILL">7. RECUT TWILL</option>
                         </select>
                     </div>
                     <div style="display: flex; gap: 1rem;">
@@ -262,6 +272,7 @@ const ProductionModule = {
         const temp = document.getElementById('param_temp')?.value;
         const hum = document.getElementById('param_hum')?.value;
         const perfil = document.getElementById('param_perfil')?.value;
+        const plotter = document.getElementById('param_plotter')?.value;
 
         if (!temp || !hum) { 
             Notifications.warning('⚠️ Faltan datos técnicos'); 
@@ -285,7 +296,8 @@ const ProductionModule = {
                     inicio_produccion: new Date().toISOString(),
                     plotter_temp: parseFloat(temp),
                     plotter_humedad: parseFloat(hum),
-                    perfil_impresion: perfil
+                    perfil_impresion: perfil,
+                    numero_plotter: plotter
                 }).eq('id', id);
 
                 if (errorUpdate) {
@@ -299,7 +311,7 @@ const ProductionModule = {
                 const notificacionInicio = {
                     tipo: 'produccion',
                     titulo: `🚀 INICIO: PO ${poName}`,
-                    descripcion: `PRODUCCIÓN INICIADA\n\nOperador: ${usuario}\nTemp: ${temp}°C | Hum: ${hum}%\nPerfil: ${perfil}`,
+                    descripcion: `PRODUCCIÓN INICIADA\n\nOperador: ${usuario}\nPlotter: #${plotter}\nTemp: ${temp}°C | Hum: ${hum}%\nPerfil: ${perfil}`,
                     po: poName,
                     fecha: new Date().toISOString(),
                     leido: false

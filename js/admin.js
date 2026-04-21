@@ -105,10 +105,17 @@ const AdminModule = {
         
         try {
             const resultado = await window.SupabaseClient.guardarUsuario(usuario);
-            console.log('✅ Usuario guardado en Supabase:', usuario.username);
-            return true;
+            if (resultado) {
+                console.log('✅ Usuario guardado en Supabase:', usuario.username);
+                return true;
+            }
+            return false;
         } catch (error) {
             console.error('❌ Error guardando en Supabase:', error);
+            // Mostrar error detallado en consola para diagnóstico
+            if (error.message) {
+                console.error('Detalle del error:', error.message);
+            }
             return false;
         }
     },
@@ -402,6 +409,7 @@ const AdminModule = {
         document.getElementById('check_solicitudes').checked = usuario ? !!usuario.permiso_solicitudes : false;
         document.getElementById('check_ordenes').checked = usuario ? !!usuario.permiso_ordenes : false;
         document.getElementById('check_aprobaciones').checked = usuario ? !!usuario.permiso_aprobaciones : false;
+        document.getElementById('check_tracking_avanzar').checked = usuario ? !!usuario.permiso_tracking_avanzar : false;
         
         // Cargar Checkpoints de Procesos de Producción
         this.cargarCheckpointsProcesos(usuario ? (usuario.procesos_asignados || []) : []);
@@ -424,6 +432,7 @@ const AdminModule = {
             document.getElementById('check_solicitudes').checked = s;
             document.getElementById('check_ordenes').checked = o;
             document.getElementById('check_aprobaciones').checked = a;
+            document.getElementById('check_tracking_avanzar').checked = a;
         };
 
         if (rol === 'admin') isSet(true, true, true, true, true, true, true);
@@ -637,6 +646,7 @@ const AdminModule = {
                     this.usuarios[i].permiso_solicitudes = document.getElementById('check_solicitudes').checked;
                     this.usuarios[i].permiso_ordenes = document.getElementById('check_ordenes').checked;
                     this.usuarios[i].permiso_aprobaciones = document.getElementById('check_aprobaciones').checked;
+                    this.usuarios[i].permiso_tracking_avanzar = document.getElementById('check_tracking_avanzar').checked;
                     
                     this.usuarios[i].actualizado = new Date().toISOString();
                     encontrado = true;
@@ -649,9 +659,15 @@ const AdminModule = {
             }
             
             const usuarioEditado = this.usuarios.find(u => u.id === editId);
-            await this.guardarUsuarioEnSupabase(usuarioEditado);
-            this.guardarUsuariosLocal();
-            alert(`✅ Usuario editado correctamente. Nuevo nombre: ${nuevoNombre}`);
+            const exito = await this.guardarUsuarioEnSupabase(usuarioEditado);
+            
+            if (exito) {
+                this.guardarUsuariosLocal();
+                alert(`✅ Usuario editado correctamente. Nuevo nombre: ${nuevoNombre}`);
+            } else {
+                alert(`❌ Error al actualizar en la base de datos.`);
+                return; // No cerrar modal
+            }
         } else {
             if (!nuevaPassword) {
                 alert('⚠️ La contraseña es obligatoria para nuevos usuarios');
@@ -663,7 +679,7 @@ const AdminModule = {
             }
             
             const nuevoUsuario = {
-                id: Date.now().toString(),
+                id: (window.Utils && window.Utils.generarIdUnico) ? window.Utils.generarIdUnico() : 'USR-' + Date.now().toString(36).toUpperCase(),
                 username: nuevoNombre,
                 password: nuevaPassword,
                 rol: nuevoRol,
@@ -675,14 +691,21 @@ const AdminModule = {
                 permiso_solicitudes: document.getElementById('check_solicitudes').checked,
                 permiso_ordenes: document.getElementById('check_ordenes').checked,
                 permiso_aprobaciones: document.getElementById('check_aprobaciones').checked,
+                permiso_tracking_avanzar: document.getElementById('check_tracking_avanzar').checked,
                 creado: new Date().toISOString(),
                 actualizado: new Date().toISOString()
             };
-            this.usuarios.push(nuevoUsuario);
             
-            await this.guardarUsuarioEnSupabase(nuevoUsuario);
-            this.guardarUsuariosLocal();
-            alert(`✅ Usuario "${nuevoNombre}" creado correctamente`);
+            const exito = await this.guardarUsuarioEnSupabase(nuevoUsuario);
+            
+            if (exito) {
+                this.usuarios.push(nuevoUsuario);
+                this.guardarUsuariosLocal();
+                alert(`✅ Usuario "${nuevoNombre}" creado correctamente`);
+            } else {
+                alert(`❌ Error al registrar en la base de datos. El usuario no fue creado.`);
+                return; // No cerrar modal si falló
+            }
         }
         
         this.actualizarEstadisticas();

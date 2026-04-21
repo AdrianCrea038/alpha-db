@@ -9,7 +9,15 @@ const OrderImportModule = {
         console.log('📂 Módulo de Órdenes iniciado');
         await this.cargarOrdenes();
         this.renderizar();
-        this.configurarEventos();
+    },
+
+    cerrar: function() {
+        const panel = document.getElementById('ordenesImportPanel');
+        if (panel) panel.style.display = 'none';
+        // Al cerrar, volvemos a la base de datos para no dejar la pantalla vacía
+        if (window.Sidebar && window.Sidebar.mostrarBaseDatos) {
+            window.Sidebar.mostrarBaseDatos();
+        }
     },
     
     cargarOrdenes: async function() {
@@ -27,12 +35,25 @@ const OrderImportModule = {
                     .select('*')
                     .order('importado_el', { ascending: false });
                 
-                if (!error && data && data.length > 0) {
-                    this.ordenes = data;
-                    this.guardarLocal();
+                if (!error && data) {
+                    // MIGRACIÓN: Asegurar que todas tengan semana
+                    let huboCambios = false;
+                    const ordenesMigradas = data.map(o => {
+                        if (!o.semana && o.importado_el && window.Utils) {
+                            o.semana = Utils.obtenerSemana(new Date(o.importado_el));
+                            huboCambios = true;
+                        }
+                        return o;
+                    });
+
+                    this.ordenes = ordenesMigradas;
+                    if (huboCambios) {
+                        console.log('🔄 Semanas calculadas para visualización local');
+                        this.guardarLocal();
+                    }
                 }
             } catch (error) {
-                console.log('Tabla ordenes_importadas no existe');
+                console.log('Error en migración/carga de órdenes:', error);
             }
         }
     },
@@ -40,9 +61,11 @@ const OrderImportModule = {
     guardarEnSupabase: async function(orden) {
         if (!window.SupabaseClient || !window.SupabaseClient.client) return false;
         try {
+            // Clonar para no enviar la semana a Supabase (evitar error de esquema)
+            const { semana, ...ordenSinSemana } = orden;
             const { error } = await window.SupabaseClient.client
                 .from('ordenes_importadas')
-                .upsert(orden);
+                .upsert(ordenSinSemana);
             if (error) throw error;
             return true;
         } catch (error) {
@@ -55,69 +78,83 @@ const OrderImportModule = {
     },
     
     renderizar: function() {
-        const container = document.getElementById('ordenesImportPanel');
+        const container = document.querySelector('.container');
         if (!container) return;
-        
+
+        // 1. Ocultar secciones base
+        const baseSections = ['.form-section', '.filters-section', '.table-section'];
+        baseSections.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) el.style.display = 'none';
+        });
+
+        // 2. Crear contenedor propio si no existe
+        let ordenesPanel = document.getElementById('ordenesImportPanel');
+        if (!ordenesPanel) {
+            ordenesPanel = document.createElement('div');
+            ordenesPanel.id = 'ordenesImportPanel';
+            ordenesPanel.className = 'ordenes-import-panel';
+            container.appendChild(ordenesPanel);
+        }
+        ordenesPanel.style.display = 'block';
+
         const ordenesPendientes = this.ordenes.filter(o => !o.usado);
         const ordenesUsadas = this.ordenes.filter(o => o.usado);
-        
-        let html = `
-            <div class="ordenes-import-container">
-                <div class="ordenes-header">
-                    <h2>📂 CARGA DE ÓRDENES (Excel)</h2>
-                    <p>Importe órdenes desde Excel y complete los colores</p>
+
+        const panelHTML = `
+            <div class="ordenes-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="color: #00D4FF; margin: 0;">📥 CARGA MASIVA DE ÓRDENES (EXCEL)</h2>
+                    <button onclick="OrderImportModule.cerrar()" style="background: transparent; border: none; color: #8B949E; font-size: 1.5rem; cursor: pointer;">✕</button>
                 </div>
-                
-                <div class="ordenes-upload-area">
-                    <div class="upload-zone" id="uploadZone">
-                        <div class="upload-icon">📁</div>
-                        <div class="upload-text">Arrastre un archivo Excel (.xlsx, .xls) o haga clic aquí</div>
-                        <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;">
-                        <button id="seleccionarArchivoBtn" class="btn-seleccionar">📁 SELECCIONAR ARCHIVO</button>
+                <div class="ordenes-header-actions" style="display: flex; gap: 1rem; align-items: center; background: #161B22; padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,212,255,0.2);">
+                    <div id="uploadZone" class="upload-zone" style="flex: 1; border: 2px dashed #30363D; padding: 1.5rem; text-align: center; border-radius: 8px; cursor: pointer;">
+                        <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📁</span>
+                        <p style="margin: 0; font-size: 0.85rem; color: #8B949E;">Arrastre Excel aquí o haga clic para seleccionar</p>
+                        <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none;">
                     </div>
-                </div>
-                
-                <div class="ordenes-tabs" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <button class="ordenes-tab-btn active" data-tab="pendientes">📋 PENDIENTES (${ordenesPendientes.length})</button>
-                        <button class="ordenes-tab-btn" data-tab="usadas">✅ USADAS (${ordenesUsadas.length})</button>
-                    </div>
-                    ${ordenesPendientes.length > 0 ? `
-                        <button id="btnLimpiarSinColor" class="btn-limpiar" style="background: #21262D; border: 1px solid #FF4444; color: #FF4444; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 700; transition: all 0.3s;">
-                            🧹 LIMPIAR SIN COLOR
-                        </button>
-                    ` : ''}
-                </div>
-                
-                <div id="tabPendientes" class="ordenes-tab-pane active">
-                    ${this.renderizarTabla(ordenesPendientes, 'pendiente')}
-                </div>
-                
-                <div id="tabUsadas" class="ordenes-tab-pane" style="display: none;">
-                    ${this.renderizarTabla(ordenesUsadas, 'usada')}
+                    <button id="btnLimpiarSinColor" class="btn-limpiar" style="background: rgba(255,68,68,0.1); border: 1px solid #FF4444; color: #FF4444; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 800; cursor: pointer;">🧹 LIMPIAR PENDIENTES</button>
                 </div>
             </div>
+            
+            <div class="ordenes-tabs" style="margin-top: 2rem; display: flex; gap: 5px;">
+                <button class="ordenes-tab-btn active" data-tab="pendientes" style="padding: 0.8rem 1.5rem; border-radius: 8px 8px 0 0; border: none; cursor: pointer; font-weight: 800;">📋 PENDIENTES (${ordenesPendientes.length})</button>
+                <button class="ordenes-tab-btn" data-tab="usadas" style="padding: 0.8rem 1.5rem; border-radius: 8px 8px 0 0; border: none; cursor: pointer; font-weight: 800;">✅ USADAS (${ordenesUsadas.length})</button>
+            </div>
+
+            <div id="tabPendientes" class="tab-content" style="background: #161B22; padding: 1.5rem; border-radius: 0 12px 12px 12px; border: 1px solid #30363D;">
+                ${this.renderizarSeccionTabla(ordenesPendientes, 'pendiente')}
+            </div>
+            
+            <div id="tabUsadas" class="tab-content" style="display: none; background: #161B22; padding: 1.5rem; border-radius: 0 12px 12px 12px; border: 1px solid #30363D;">
+                ${this.renderizarSeccionTabla(ordenesUsadas, 'usada')}
+            </div>
         `;
-        
-        container.innerHTML = html;
-        this.configurarTabs();
+
+        ordenesPanel.innerHTML = panelHTML;
         this.configurarUpload();
+        this.configurarTabs();
+        this.configurarEventos();
     },
-    
-    renderizarTabla: function(ordenes, tipo) {
+
+    renderizarSeccionTabla: function(ordenes, tipo) {
         if (ordenes.length === 0) {
             return `<div class="ordenes-vacio">📭 No hay órdenes ${tipo === 'pendiente' ? 'pendientes' : 'usadas'}</div>`;
         }
         
         let html = `
-            <div class="ordenes-filtros">
-                <input type="text" id="filtroPo_${tipo}" placeholder="🔍 Buscar por PO..." class="input-bonito">
-                <button id="btnFiltrar_${tipo}" class="btn-filtrar">BUSCAR</button>
+            <div class="ordenes-filtros" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="filtroPo_${tipo}" placeholder="🔍 Buscar por PO..." class="input-bonito" style="flex: 2;">
+                <select id="filtroSemana_${tipo}" class="select-bonito" style="flex: 1;">
+                    <option value="">📅 Semanas</option>
+                    ${this.obtenerOpcionesSemanas()}
+                </select>
+                <button id="btnFiltrar_${tipo}" class="btn-filtrar" style="flex: 0.5;">BUSCAR</button>
             </div>
             <div class="ordenes-tabla-container">
                 <table class="ordenes-tabla">
                     <thead>
-                        <tr><th>PO</th><th>STYLE (NK)</th><th>PIEZAS</th><th>FECHA</th><th>ACCIÓN</th></tr>
+                        <tr><th>SEM</th><th>PO</th><th>STYLE (NK)</th><th>PIEZAS</th><th>FECHA</th><th>ACCIÓN</th></tr>
                     </thead>
                     <tbody id="tablaBody_${tipo}">
         `;
@@ -126,6 +163,7 @@ const OrderImportModule = {
             const fecha = new Date(orden.importado_el).toLocaleDateString();
             html += `
                 <tr data-id="${orden.id}">
+                    <td style="color: #00D4FF; font-weight: bold;">${orden.semana || '-'}</td>
                     <td><strong>${this.escapeHtml(orden.po_item)}</strong></td>
                     <td><span class="nk-badge">${this.escapeHtml(orden.style)}</span></td>
                     <td>${orden.make} piezas</td>
@@ -140,7 +178,7 @@ const OrderImportModule = {
             `;
         });
         
-        html += `</tbody>}</div>`;
+        html += `</tbody></table></div>`;
         return html;
     },
     
@@ -222,12 +260,22 @@ const OrderImportModule = {
         }
     },
     
-    filtrarTabla: function(tipo, termino) {
+    filtrarTabla: function(tipo, termino, semana) {
         const ordenesFiltradas = this.ordenes.filter(o => {
             if (tipo === 'pendiente' && o.usado) return false;
             if (tipo === 'usada' && !o.usado) return false;
-            if (!termino.trim()) return true;
-            return o.po_item.toLowerCase().includes(termino.toLowerCase());
+            
+            const cumpleTermino = !termino.trim() || o.po_item.toLowerCase().includes(termino.toLowerCase());
+            
+            // Cálculo dinámico de semana para el filtro si no existe
+            let semanaOrden = o.semana;
+            if (!semanaOrden && o.importado_el && window.Utils) {
+                semanaOrden = Utils.obtenerSemana(new Date(o.importado_el));
+            }
+
+            const cumpleSemana = !semana || String(semanaOrden) === String(semana);
+            
+            return cumpleTermino && cumpleSemana;
         });
         
         const tbody = document.getElementById(`tablaBody_${tipo}`);
@@ -252,6 +300,7 @@ const OrderImportModule = {
             const fecha = new Date(orden.importado_el).toLocaleDateString();
             html += `
                 <tr data-id="${orden.id}">
+                    <td style="color: #00D4FF; font-weight: bold;">${orden.semana || '-'}</td>
                     <td><strong>${this.escapeHtml(orden.po_item)}</strong></td>
                     <td><span class="nk-badge">${this.escapeHtml(orden.style)}</span></td>
                     <td>${orden.make} piezas</td>
@@ -392,6 +441,7 @@ const OrderImportModule = {
                         style: style,
                         make: make,
                         importado_el: new Date().toISOString(),
+                        semana: window.Utils ? Utils.obtenerSemana(new Date()) : null,
                         usado: false
                     });
                     ordenesExistentes.add(po_item);
@@ -470,6 +520,10 @@ const OrderImportModule = {
                             <div class="form-group">
                                 <label>FECHA:</label>
                                 <input type="date" id="modalFecha" value="${new Date().toISOString().split('T')[0]}" class="input-bonito">
+                            </div>
+                            <div class="form-group">
+                                <label>SEMANA:</label>
+                                <input type="number" id="modalSemana" value="${window.Utils ? Utils.obtenerSemana(new Date()) : ''}" class="input-bonito" min="1" max="53">
                             </div>
                             <div class="form-group">
                                 <label>ESTILO/DEPORTE:</label>
@@ -572,8 +626,8 @@ const OrderImportModule = {
             return;
         }
         
-        const fechaObj = new Date(fecha);
-        const semana = window.Utils ? window.Utils.obtenerSemana(fechaObj) : 1;
+        const semanaInput = document.getElementById('modalSemana')?.value;
+        const semana = parseInt(semanaInput) || (window.Utils ? window.Utils.obtenerSemana(new Date(fecha)) : 1);
         
         const registroData = {
             id: window.Utils ? window.Utils.generarIdUnico() : 'ADB-' + Date.now(),
@@ -647,21 +701,25 @@ const OrderImportModule = {
     
     configurarEventos: function() {
         const filtroPendientes = document.getElementById('filtroPo_pendiente');
+        const semPendientes = document.getElementById('filtroSemana_pendiente');
         const btnFiltrarPendientes = document.getElementById('btnFiltrar_pendiente');
-        if (filtroPendientes && btnFiltrarPendientes) {
-            btnFiltrarPendientes.addEventListener('click', () => this.filtrarTabla('pendiente', filtroPendientes.value));
-            filtroPendientes.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.filtrarTabla('pendiente', filtroPendientes.value);
+        if (btnFiltrarPendientes) {
+            btnFiltrarPendientes.addEventListener('click', () => this.filtrarTabla('pendiente', filtroPendientes.value, semPendientes.value));
+            filtroPendientes?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.filtrarTabla('pendiente', filtroPendientes.value, semPendientes.value);
             });
+            semPendientes?.addEventListener('change', () => this.filtrarTabla('pendiente', filtroPendientes.value, semPendientes.value));
         }
         
         const filtroUsadas = document.getElementById('filtroPo_usada');
+        const semUsadas = document.getElementById('filtroSemana_usada');
         const btnFiltrarUsadas = document.getElementById('btnFiltrar_usada');
-        if (filtroUsadas && btnFiltrarUsadas) {
-            btnFiltrarUsadas.addEventListener('click', () => this.filtrarTabla('usada', filtroUsadas.value));
-            filtroUsadas.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.filtrarTabla('usada', filtroUsadas.value);
+        if (btnFiltrarUsadas) {
+            btnFiltrarUsadas.addEventListener('click', () => this.filtrarTabla('usada', filtroUsadas.value, semUsadas.value));
+            filtroUsadas?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.filtrarTabla('usada', filtroUsadas.value, semUsadas.value);
             });
+            semUsadas?.addEventListener('change', () => this.filtrarTabla('usada', filtroUsadas.value, semUsadas.value));
         }
         
         document.querySelectorAll('.btn-agregar-color').forEach(btn => {
@@ -695,6 +753,19 @@ const OrderImportModule = {
             if (m === '>') return '&gt;';
             return m;
         });
+    },
+
+    obtenerOpcionesSemanas: function() {
+        const semanas = new Set();
+        this.ordenes.forEach(o => { 
+            let sem = o.semana;
+            if (!sem && o.importado_el && window.Utils) {
+                sem = Utils.obtenerSemana(new Date(o.importado_el));
+            }
+            if (sem) semanas.add(sem); 
+        });
+        const sorted = Array.from(semanas).sort((a, b) => b - a);
+        return sorted.map(s => `<option value="${s}">Semana ${s}</option>`).join('');
     }
 };
 

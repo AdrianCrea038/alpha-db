@@ -135,6 +135,15 @@ function guardarSesion(usuario, recordar) {
         username: usuario.username,
         rol: usuario.rol,
         procesosAsignados: usuario.procesos_asignados || [],
+        // Incluir permisos específicos
+        permiso_bandeja: usuario.permiso_bandeja,
+        permiso_data: usuario.permiso_data,
+        permiso_produccion: usuario.permiso_produccion,
+        permiso_consultas: usuario.permiso_consultas,
+        permiso_solicitudes: usuario.permiso_solicitudes,
+        permiso_ordenes: usuario.permiso_ordenes,
+        permiso_aprobaciones: usuario.permiso_aprobaciones,
+        permiso_tracking_avanzar: usuario.permiso_tracking_avanzar,
         fecha: new Date().toISOString(),
         expiracion: new Date(Date.now() + duracionMs).toISOString()
     };
@@ -201,10 +210,20 @@ function puedeAccederTracking() {
 function puedeAvanzarProceso(proceso) {
     const usuario = getUsuarioActual();
     if (!usuario) return false;
-    if (usuario.rol === 'admin' || usuario.rol === 'usuario_tracking') return true;
-    if (usuario.rol === 'operador') {
-        return (usuario.procesosAsignados || []).includes(proceso);
+    
+    // Si es admin, tiene permiso total siempre
+    if (usuario.rol === 'admin') return true;
+    
+    // El usuario debe tener explícitamente marcado el permiso de avanzar tracking
+    if (usuario.permiso_tracking_avanzar) {
+        // Si es operador, debe tener además el proceso asignado
+        if (usuario.rol === 'operador') {
+            return (usuario.procesosAsignados || []).includes(proceso);
+        }
+        // Para otros roles con el permiso marcado (ej: usuario_tracking)
+        return true;
     }
+    
     return false;
 }
 

@@ -5,6 +5,7 @@
 const InboxModule = {
     itemsActuales: [],
     tipoFiltro: 'todos',
+    idSeleccionado: null,
     
     init: async function() {
         console.log('📥 Módulo de Bandeja (Email Center) iniciado');
@@ -15,16 +16,32 @@ const InboxModule = {
         const container = document.querySelector('.container');
         if (!container) return;
 
-        // Ocultar otras secciones
-        const sectionsToHide = ['.form-section', '.filters-section', '.table-section', '#solicitudesPanel', '#productionPanel'];
-        sectionsToHide.forEach(selector => {
-            const el = document.querySelector(selector);
+        // 1. Ocultar secciones base en lugar de borrarlas
+        const baseSections = ['.form-section', '.filters-section', '.table-section'];
+        baseSections.forEach(sel => {
+            const el = document.querySelector(sel);
             if (el) el.style.display = 'none';
         });
 
-        const panelHTML = `
-            <div id="inboxPanel" style="display: grid; grid-template-columns: 220px 380px 1fr; height: calc(100vh - 140px); background: #0D1117; border-radius: 12px; border: 1px solid #30363D; overflow: hidden; animation: fadeIn 0.3s ease;">
-                
+        // 2. Crear o recuperar el panel de Inbox sin destruir el contenedor
+        let inboxPanel = document.getElementById('inboxPanel');
+        if (!inboxPanel) {
+            inboxPanel = document.createElement('div');
+            inboxPanel.id = 'inboxPanel';
+            container.appendChild(inboxPanel);
+        }
+        
+        // 3. Inyectar el diseño dentro de su propio panel
+        inboxPanel.style.display = 'grid';
+        inboxPanel.style.gridTemplateColumns = '220px 380px 1fr';
+        inboxPanel.style.height = 'calc(100vh - 140px)';
+        inboxPanel.style.background = '#0D1117';
+        inboxPanel.style.borderRadius = '12px';
+        inboxPanel.style.border = '1px solid #30363D';
+        inboxPanel.style.overflow = 'hidden';
+        inboxPanel.style.animation = 'fadeIn 0.3s ease';
+
+        inboxPanel.innerHTML = `
                 <!-- PANEL 1: CARPETAS -->
                 <div style="background: #161B22; border-right: 1px solid #30363D; padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
                     <h3 style="color: #00D4FF; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1.5rem;">BANDEJA DE ENTRADA</h3>
@@ -64,10 +81,8 @@ const InboxModule = {
                         <p style="font-weight: 700; margin-top: 1rem; color: #484F58;">Seleccione un mensaje para leer</p>
                     </div>
                 </div>
-            </div>
         `;
 
-        container.innerHTML = panelHTML;
         this.cargarBandeja();
     },
 
@@ -126,20 +141,23 @@ const InboxModule = {
         let html = '';
         items.forEach(item => {
             const isUnread = !item.leido;
+            const isSelected = item.id === this.idSeleccionado;
             const fecha = new Date(item.fecha).toLocaleDateString([], { day: '2-digit', month: 'short' });
             const icon = this.getIcono(item.tipo);
 
             html += `
-                <div onclick="InboxModule.verDetalle('${item.id}')" class="inbox-item-row" style="padding: 1.2rem; border-bottom: 1px solid #161B22; cursor: pointer; position: relative; transition: background 0.2s; background: ${isUnread ? 'rgba(0,212,255,0.03)' : 'transparent'};">
-                    ${isUnread ? '<div style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; background: #00D4FF; border-radius: 50%; box-shadow: 0 0 8px #00D4FF;"></div>' : ''}
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem; margin-left: 10px;">
-                        <span style="font-size: 0.65rem; font-weight: 800; color: #8B949E;">${icon} ${item.tipo.toUpperCase()}</span>
+                <div onclick="InboxModule.verDetalle('${item.id}')" class="inbox-item-row ${isSelected ? 'selected' : ''}" 
+                     style="padding: 1.2rem; border-bottom: 1px solid #161B22; cursor: pointer; position: relative; transition: all 0.2s; 
+                     background: ${isSelected ? 'rgba(0,212,255,0.1)' : (isUnread ? 'rgba(0,212,255,0.03)' : 'transparent')};
+                     border-left: 4px solid ${isSelected ? '#00D4FF' : (isUnread ? '#00D4FF66' : 'transparent')};">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem; margin-left: 5px;">
+                        <span style="font-size: 0.65rem; font-weight: 800; color: ${isSelected ? '#00D4FF' : '#8B949E'};">${icon} ${item.tipo.toUpperCase()}</span>
                         <span style="font-size: 0.65rem; color: #444;">${fecha}</span>
                     </div>
-                    <div style="font-weight: ${isUnread ? '800' : '500'}; color: ${isUnread ? '#FFFFFF' : '#8B949E'}; font-size: 0.85rem; margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <div style="font-weight: ${isUnread || isSelected ? '800' : '500'}; color: ${isSelected ? '#FFFFFF' : (isUnread ? '#FFFFFF' : '#8B949E')}; font-size: 0.85rem; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         ${item.titulo}
                     </div>
-                    <div style="font-size: 0.75rem; color: #555; margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">
+                    <div style="font-size: 0.75rem; color: #555; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">
                         ${item.descripcion || 'Sin descripción'}
                     </div>
                 </div>
@@ -161,8 +179,12 @@ const InboxModule = {
         const detailView = document.getElementById('inboxDetailView');
         if (!detailView) return;
 
+        this.idSeleccionado = id;
         const item = this.itemsActuales.find(i => i.id === id);
         if (!item) return;
+
+        // Re-renderizar lista para mostrar el seleccionado
+        this.renderizarLista(this.itemsActuales);
 
         // Marcar como leído
         if (!item.leido) {
