@@ -1,658 +1,804 @@
-// ============================================================
-// js/main.js - Punto de entrada principal
-// ============================================================
+// js/main.js
+import { Auth } from './core/auth.js';
+import { loadFile, parseTxtContent } from './modules/fileLoader.js';
+import { validateAndCorrectRecords } from './modules/nameValidator.js';
+import { compareFiles } from './modules/comparator.js';
+import { renderResults } from './modules/resultsRenderer.js';
+import { exportResults } from './modules/exporter.js';
+import { clearAllCache, saveComparatorState, loadComparatorState } from './modules/cacheManager.js';
+import { showNotification } from './core/utils.js';
+import { findDuplicateGroups, showDuplicateModal } from './modules/duplicateHandler.js';
 
-// ============================================================
-// MODAL DE CONFIRMACIÓN DE EDICIÓN
-// ============================================================
-function mostrarModalConfirmacionEdicion(registro) {
-    return new Promise((resolve) => {
-        const modal = document.getElementById('modalConfirmEdicion');
-        const btnOrdenNueva = document.getElementById('btnOptOrdenNueva');
-        const btnReemplazo = document.getElementById('btnOptReemplazo');
-        const seccionMotivo = document.getElementById('seccionMotivoEdicion');
-        const descTipo = document.getElementById('descTipoEdicion');
-        const selectMotivo = document.getElementById('selectMotivoEdicion');
-        const txtOtro = document.getElementById('txtOtroMotivo');
-        const btnCancelar = document.getElementById('btnCancelarConfirm');
-        const btnGuardar = document.getElementById('btnGuardarConfirm');
+// Importar vistas
+import { PaletteValidatorView } from './views/paletteValidatorView.js';
+import { DevelopmentView } from './views/developmentView.js';
+import { HistoryView } from './views/historyView.js';
+import { AssignmentView } from './views/assignmentView.js';
+import { AdminView } from './views/adminView.js';
+import { ReportsView } from './views/reportsView.js';
+import { DashboardView } from './views/dashboardView.js';
+import { LinearizationValidatorView } from './views/linearizationValidatorView.js';
+import { supabase, getAllMasterNks, getCustomValidColorNames } from './core/supabaseClient.js';
 
-        let esOrdenNueva = false;
-
-        // Reset inicial
-        modal.classList.add('show');
-        selectMotivo.value = '';
-        txtOtro.value = '';
-        btnReemplazo.classList.add('active');
-        btnOrdenNueva.classList.remove('active');
-        seccionMotivo.style.display = 'block';
-        descTipo.innerText = 'v2+, requiere motivo y genera historial.';
-
-        // Eventos de selección
-        btnOrdenNueva.onclick = () => {
-            esOrdenNueva = true;
-            btnOrdenNueva.classList.add('active');
-            btnReemplazo.classList.remove('active');
-            btnOrdenNueva.style.borderColor = '#00D4FF';
-            btnReemplazo.style.borderColor = '#484F58';
-            seccionMotivo.style.display = 'none';
-            descTipo.innerText = 'v1, resetea historial y marca de editado.';
-        };
-
-        btnReemplazo.onclick = () => {
-            esOrdenNueva = false;
-            btnReemplazo.classList.add('active');
-            btnOrdenNueva.classList.remove('active');
-            btnReemplazo.style.borderColor = '#00D4FF';
-            btnOrdenNueva.style.borderColor = '#484F58';
-            seccionMotivo.style.display = 'block';
-            descTipo.innerText = 'v2+, requiere motivo y genera historial.';
-        };
-
-        btnCancelar.onclick = () => {
-            modal.classList.remove('show');
-            resolve(null);
-        };
-
-        btnGuardar.onclick = () => {
-            let motivoFinal = '';
-            if (esOrdenNueva) {
-                motivoFinal = 'Orden Nueva (Corrección)';
-            } else {
-                if (!selectMotivo.value) {
-                    if (window.Notifications) Notifications.warning('⚠️ Seleccione un motivo de reemplazo');
-                    return;
-                }
-                motivoFinal = selectMotivo.value + (txtOtro.value ? ': ' + txtOtro.value : '');
-            }
-
-            modal.classList.remove('show');
-            resolve({ esOrdenNueva, motivo: motivoFinal });
-        };
-    });
-}
-
-// --- FUNCIONES GLOBALES DE CARGA (Lazy Loading) ---
-window.imprimirEtiqueta = function(id) {
-    if (window.PrintingModule) {
-        window.PrintingModule.imprimirEtiqueta(id);
-    } else {
-        console.error('PrintingModule no cargado');
-    }
-};
-
-window.exportarExcel = async function() {
-    if (!window.ExcelModule) {
-        try {
-            if (window.Notifications) Notifications.info('📥 Cargando Excel...');
-            await Utils.loadScript('js/modules/excel.js');
-            await new Promise(r => setTimeout(r, 150));
-        } catch (e) { return; }
-    }
-    if (window.ExcelModule) window.ExcelModule.exportar();
-};
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Iniciando Alpha DB v10.0...');
-    
-    window.onStateChange = function() {
-        if (window.TableUI && TableUI.actualizar) TableUI.actualizar();
-        if (window.CalendarUI && CalendarUI.actualizar) CalendarUI.actualizar();
-    };
-    
-    const hoy = new Date().toISOString().split('T')[0];
-    const fechaInput = document.getElementById('fecha');
-    if (fechaInput) {
-        fechaInput.value = hoy;
-        fechaInput.setAttribute('max', hoy);
-        fechaInput.addEventListener('change', () => {
-            if (window.FormUI && FormUI.verificarFecha) FormUI.verificarFecha();
-        });
+class AlphaColorMatch {
+    constructor() {
+        this.auth = new Auth();
+        
+        this.primaryData = [];
+        this.secondaryData = [];
+        this.primaryFileName = '';
+        this.secondaryFileName = '';
+        this.results = [];
+        this.selectedPending = new Set();
+        this.deletedPending = new Set();
+        this.groupSelections = new Map();
+        this.manualGroupSelections = new Set();
+        this.inboxItems = [];
+        
+        // Vistas
+        this.paletteValidatorView = null;
+        this.developmentView = null;
+        this.historyView = null;
+        this.assignmentView = null;
+        this.adminView = null;
+        this.reportsView = null;
+        this.dashboardView = null;
+        this.linearizationValidatorView = null;
+        
+        this.init();
     }
     
-    configurarEventosUI();
-    cargarDatosIniciales();
-    
-    if (window.Sidebar && Sidebar.init) {
-        setTimeout(() => Sidebar.init(), 100);
-    }
-    
-    // ============================================================
-    // DETECTAR REEMPLAZO PENDIENTE DESDE BANDEJA
-    // ============================================================
-    verificarReemplazoPendiente();
-});
-
-function verificarReemplazoPendiente() {
-    const reemplazoPendiente = sessionStorage.getItem('reemplazoPendiente');
-    const solicitudId = sessionStorage.getItem('solicitudId');
-    
-    if (reemplazoPendiente && solicitudId) {
-        try {
-            const datosPrellenados = JSON.parse(reemplazoPendiente);
-            console.log('🔄 Reemplazo pendiente detectado:', datosPrellenados);
-            
-            // Mostrar notificación
-            setTimeout(() => {
-                if (window.Notifications) {
-                    Notifications.info('📋 Tiene un reemplazo pendiente. El formulario ha sido pre-llenado.', 5000);
-                }
-            }, 1000);
-            
-            // Cambiar a la pestaña de Base de Datos si es necesario
-            if (window.Sidebar && window.Sidebar.mostrarBaseDatos) {
-                window.Sidebar.mostrarBaseDatos();
-            }
-            
-            // Cargar los datos en el formulario
-            setTimeout(() => {
-                if (window.RecordsModule && window.RecordsModule.cargarDatosPrellenados) {
-                    window.RecordsModule.cargarDatosPrellenados(datosPrellenados);
-                }
-            }, 500);
-            
-            // Limpiar sessionStorage después de cargar
-            // No limpiar inmediatamente para permitir recargas
-            window.addEventListener('beforeunload', function() {
-                sessionStorage.removeItem('reemplazoPendiente');
-                sessionStorage.removeItem('solicitudId');
-            });
-            
-        } catch(e) {
-            console.error('Error cargando reemplazo pendiente:', e);
-            sessionStorage.removeItem('reemplazoPendiente');
-            sessionStorage.removeItem('solicitudId');
-        }
-    }
-    
-    // Verificar si hay hash en la URL indicando reemplazo
-    if (window.location.hash === '#reemplazo') {
-        window.location.hash = '';
-    }
-}
-
-function configurarEventosUI() {
-    const agregarTelaBtn = document.getElementById('agregarTelaBtn');
-    if (agregarTelaBtn && window.ColorsModule) {
-        agregarTelaBtn.addEventListener('click', () => window.ColorsModule.agregarGrupoTela('', []));
-    }
-    
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            AppState.setFiltros(e.target.value, AppState.currentSemana);
-            if (window.TableUI) TableUI.actualizar();
-        });
-    }
-    
-    const clearSearch = document.getElementById('clearSearch');
-    if (clearSearch) {
-        clearSearch.addEventListener('click', () => {
-            const input = document.getElementById('searchInput');
-            if (input) input.value = '';
-            AppState.limpiarFiltros();
-            if (window.TableUI) TableUI.actualizar();
-        });
-    }
-    
-    const limpiarFiltro = document.getElementById('limpiarFiltroBtn');
-    if (limpiarFiltro) {
-        limpiarFiltro.addEventListener('click', () => {
-            const input = document.getElementById('searchInput');
-            if (input) input.value = '';
-            AppState.limpiarFiltros();
-            if (window.TableUI) TableUI.actualizar();
-            if (window.Notifications) Notifications.info('🧹 Filtros eliminados');
-        });
-    }
-    
-    const registroForm = document.getElementById('registroForm');
-    if (registroForm && window.RecordsModule) {
-        registroForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const ahora = new Date().toISOString();
-            
-            if (!window.puedeEditar || !window.puedeEditar()) {
-                if (window.Notifications) Notifications.error('❌ No tiene permisos para guardar registros');
-                return;
-            }
-            
-            const datos = window.RecordsModule.obtenerFormulario();
-            const editId = document.getElementById('editId').value;
-            
-            if (editId) {
-                const regActual = AppState.getRegistroById(editId);
-                const confirmacion = await mostrarModalConfirmacionEdicion(regActual);
-                
-                if (!confirmacion) return; // Cancelado
-
-                if (confirmacion.esOrdenNueva) {
-                    datos.version = 1;
-                } else {
-                    datos.version = (regActual.version || 1) + 1;
-                }
-
-                datos.esOrdenNueva = confirmacion.esOrdenNueva;
-                datos.descripcionEdicion = confirmacion.motivo;
-                
-                // Si estaba en producción, mantenemos ese estado al guardar la edición
-                if (regActual && regActual.en_produccion) {
-                    datos.en_produccion = true;
-                }
-
-                // Guardar en el historial local
-                if (editId) {
-                    AppState.addHistorialEntry(editId, {
-                        fecha: ahora,
-                        descripcion: datos.descripcionEdicion,
-                        anterior: { ...regActual },
-                        nuevo: { ...datos }
-                    });
-                }
-            }
-            
-            const exito = await window.RecordsModule.guardar(datos);
-            if (exito) {
-                guardarDatosLocal();
-                
-                // Limpiar reemplazo pendiente si existe
-                if (sessionStorage.getItem('reemplazoPendiente')) {
-                    sessionStorage.removeItem('reemplazoPendiente');
-                    sessionStorage.removeItem('solicitudId');
-                    if (window.Notifications) {
-                        Notifications.success('✅ Reemplazo completado. La solicitud ha sido actualizada.');
-                    }
-                }
-                
-                if (window.FormUI && window.FormUI.reset) window.FormUI.reset();
-                if (window.TableUI) TableUI.actualizar();
-            }
-        });
-    }
-    
-    const cancelEdit = document.getElementById('cancelEditBtn');
-    if (cancelEdit && window.FormUI) {
-        cancelEdit.addEventListener('click', () => window.FormUI.reset());
-    }
-    
-    const exportarDB = document.getElementById('exportarDBBtn');
-    if (exportarDB) {
-        exportarDB.addEventListener('click', () => exportarBaseDatos());
-    }
-    
-    const importarDB = document.getElementById('importarDB');
-    if (importarDB) {
-        importarDB.addEventListener('change', (e) => importarBaseDatos(e));
-    }
-    
-    const exportarExcel = document.getElementById('exportarExcelBtn');
-    if (exportarExcel) {
-        exportarExcel.addEventListener('click', () => window.exportarExcel());
-    }
-    
-    const imprimirReportes = document.getElementById('imprimirReportesBtn');
-    if (imprimirReportes) {
-        imprimirReportes.addEventListener('click', async () => {
-            if (!window.PrintingModule) {
-                if (window.Notifications) Notifications.info('📥 Cargando módulo de impresión...');
-                try { await Utils.loadScript('js/modules/printing.js'); } catch(e) { return; }
-            }
-            if (window.PrintingModule) window.PrintingModule.imprimirReporte();
-        });
-    }
-    
-    const imprimirIndividual = document.getElementById('imprimirIndividualBtn');
-    const imprimirIndividualAction = document.getElementById('imprimirIndividualBtnAction');
-    if (imprimirIndividual) {
-        imprimirIndividual.addEventListener('click', () => {
-            const select = document.getElementById('selectRegistroImprimir');
-            const modal = document.getElementById('modalImpresion');
-            if (select) {
-                select.innerHTML = '<option value="">Seleccionar</option>' + 
-                    AppState.registros.map(r => `<option value="${r.id}">${r.po} v${r.version}</option>`).join('');
-            }
-            if (modal) modal.classList.add('show');
-        });
-    }
-    if (imprimirIndividualAction) {
-        imprimirIndividualAction.addEventListener('click', () => {
-            const select = document.getElementById('selectRegistroImprimir');
-            const id = select ? select.value : null;
-            if (id) {
-                document.getElementById('modalImpresion').classList.remove('show');
-                if (window.PrintingModule) window.PrintingModule.imprimirEtiqueta(id);
-            } else {
-                if (window.Notifications) Notifications.error('❌ Selecciona un registro');
-            }
-        });
-    }
-    
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            if (confirm('¿Cerrar sesión?')) {
-                localStorage.removeItem('alpha_db_session');
-                window.location.href = 'login.html';
-            }
-        });
-    }
-
-    const reformulacionEstado = document.getElementById('reformulacionEstado');
-    const reformulacionTiempoRow = document.getElementById('reformulacionTiempoRow');
-    if (reformulacionEstado && reformulacionTiempoRow) {
-        reformulacionEstado.addEventListener('change', (e) => {
-            reformulacionTiempoRow.style.display = (e.target.value === 'reformulado') ? 'block' : 'none';
-        });
-    }
-}
-
-async function cargarDatosIniciales() {
-    if (window.SupabaseClient && window.SupabaseClient.init()) {
-        console.log('📡 Conectando a Supabase...');
-        const data = await window.SupabaseClient.getRegistros();
-        if (data && data.length > 0) {
-            AppState.setRegistros(data);
-            console.log(`📦 Cargados ${data.length} registros desde Supabase`);
-            if (window.TableUI) TableUI.actualizar();
+    async init() {
+        if (!this.auth.loadSession()) {
+            window.location.href = 'login.html';
             return;
         }
-    }
-    
-    const saved = localStorage.getItem('alpha_db_registros_v10');
-    if (saved) {
-        try {
-            const data = JSON.parse(saved);
-            AppState.setRegistros(data.registros || []);
-            AppState.historialEdiciones = data.historial || {};
-            console.log(`📦 Cargados ${AppState.registros.length} registros de localStorage`);
-        } catch(e) { 
-            console.error('Error cargando localStorage:', e);
-            generarDatosEjemplo(); 
-        }
-    } else {
-        generarDatosEjemplo();
-    }
-    
-    if (window.TableUI) TableUI.actualizar();
-}
-
-function generarDatosEjemplo() {
-    if (!AppState || !window.Utils) return;
-    
-    const ejemplos = [];
-    const pos = ['PO-2401-001', 'PO-2401-002', 'PO-2402-015'];
-    const procesos = ['DISEÑO', 'PLOTTER', 'SUBLIMADO'];
-    const estilos = ['LIBRE', 'MARIPOSA', 'PECHO'];
-    const ahora = new Date().toISOString();
-    
-    for (let i = 0; i < 3; i++) {
-        const fecha = new Date();
-        fecha.setDate(fecha.getDate() - i * 2);
-        const fechaStr = fecha.toISOString().split('T')[0];
         
-        ejemplos.push({
-            id: window.Utils.generarIdUnico(),
-            po: pos[i % pos.length],
-            proceso: procesos[i % procesos.length],
-            es_reemplazo: false,
-            semana: window.Utils.obtenerSemana(fecha),
-            fecha: fechaStr,
-            estilo: estilos[i % estilos.length],
-            nks: [{ nk: 'NK-ALG-001', colores: [{ nombre: 'ROJO', cyan: 100, magenta: 0, yellow: 0, black: 0, turquesa: 0, naranja: 0, fluorYellow: 0, fluorPink: 0 }] }],
-            numero_plotter: 1,
-            plotter_temp: 22,
-            plotter_humedad: 45,
-            plotter_perfil: 'MEDIO',
-            monti_numero: 1,
-            temperatura_monti: 180,
-            velocidad_monti: 3,
-            monti_presion: 2,
-            temperatura_flat: 160,
-            tiempo_flat: 15,
-            adhesivo: 'TIPO A',
-            version: 1,
-            observacion: null,
-            creado: ahora,
-            actualizado: ahora,
-            usuarioModifico: 'Sistema'
-        });
-    }
-    
-    AppState.setRegistros(ejemplos);
-    guardarDatosLocal();
-}
+        this.updateUIForUser();
+        this.loadSavedState();
+        await this.loadMasterData();
+        this.initViews();
+        this.initMenuNavigation();
+        this.bindEvents();
+        await this.loadInbox();
+        
+        // RECUPERAR VISTA GUARDADA
+        const lastView = localStorage.getItem('currentView') || 'dashboard';
+        if (this.switchView) this.switchView(lastView);
+        
+        // ACTIVAR SINCRONIZACIÓN EN TIEMPO REAL
+        this.setupRealtimeSync();
 
-function guardarDatosLocal() {
-    if (!AppState) return;
-    try {
-        const registrosParaGuardar = AppState.registros.map(reg => {
-            const { historial, ...regSinHistorial } = reg;
-            return regSinHistorial;
-        });
-        const dataToSave = {
-            registros: registrosParaGuardar,
-            historial: AppState.historialEdiciones
-        };
-        localStorage.setItem('alpha_db_registros_v10', JSON.stringify(dataToSave));
-    } catch(error) {
-        console.error('Error al guardar:', error);
-    }
-}
+        // ACTIVAR BACKUP PROGRAMADO (5:40 PM)
+        this.initScheduledBackup();
+        
 
-function exportarBaseDatos() {
-    const dataToExport = {
-        sistema: "ALPHA DB",
-        version: "10.0",
-        registros: AppState.registros,
-        historial: AppState.historialEdiciones
-    };
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {type:'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ALPHA_DB_${new Date().toISOString().split('T')[0]}.adb`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    if (window.Notifications) Notifications.success('💾 Backup guardado');
-}
-
-function importarBaseDatos(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!file.name.endsWith('.adb')) {
-        if (window.Notifications) Notifications.error('Debe ser archivo .adb');
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const importedData = JSON.parse(e.target.result);
-            if (!importedData.registros) throw new Error('Estructura inválida');
-            if (confirm(`¿Cargar ${importedData.registros.length} registros?`)) {
-                AppState.setRegistros(importedData.registros);
-                AppState.historialEdiciones = importedData.historial || {};
-                guardarDatosLocal();
-                if (window.SupabaseClient && window.SupabaseClient.client) {
-                    for(const reg of AppState.registros) {
-                        await window.SupabaseClient.guardarRegistro(reg);
-                    }
-                }
-                if (window.FormUI && window.FormUI.reset) window.FormUI.reset();
-                if (window.TableUI) TableUI.actualizar();
-                if (window.Notifications) Notifications.success(`📂 Cargados ${AppState.registros.length} registros`);
-            }
-        } catch(error) {
-            if (window.Notifications) Notifications.error('Archivo inválido');
+        window.selectGroup = (groupId, source) => this.selectGroup(groupId, source);
+        window.togglePendingAdd = (itemId) => this.togglePendingAdd(itemId);
+        window.togglePendingDelete = (itemId) => this.togglePendingDelete(itemId);
+        
+        if (this.primaryData.length > 0) {
+            this.renderDataList('primary', this.primaryData);
+            this.updateFileInfo('primary', 'Datos cargados desde caché', this.primaryData.length);
         }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-}
-
-window.editarRegistro = (id) => {
-    if (window.FormUI && window.FormUI.cargarParaEdicion) {
-        window.FormUI.cargarParaEdicion(id, 'general');
+        if (this.secondaryData.length > 0) {
+            this.renderDataList('secondary', this.secondaryData);
+            this.updateFileInfo('secondary', 'Datos cargados desde caché', this.secondaryData.length);
+        }
+        if (this.results.length > 0) {
+            renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+            this.validateExportReady();
+        }
+        
+        console.log('✅ Alpha Color Match iniciado');
     }
-};
 
-window.reformularRegistro = (id) => {
-    if (window.FormUI && window.FormUI.cargarParaEdicion) {
-        window.FormUI.cargarParaEdicion(id, 'reform');
-    }
-};
-
-window.eliminarRegistro = async (id) => {
-    if (!window.puedeEliminar || !window.puedeEliminar()) {
-        if (window.Notifications) Notifications.error('❌ No tiene permisos para eliminar registros');
-        return;
-    }
-    if (await window.RecordsModule.eliminar(id)) {
-        guardarDatosLocal();
-        if (window.TableUI) TableUI.actualizar();
-    }
-};
-
-
-window.verHistorial = (id) => {
-    const reg = AppState.getRegistroById(id);
-    if (!reg) {
-        if (window.Notifications) Notifications.error('Registro no encontrado');
-        return;
+    async loadMasterData() {
+        try {
+            // Cargar NKs maestros
+            window.ALL_MASTER_NKS = await getAllMasterNks();
+            // Cargar nombres de colores válidos
+            window.ALL_VALID_COLOR_NAMES = await getCustomValidColorNames();
+            console.log(`📡 Catálogos cargados: ${window.ALL_MASTER_NKS.length} NKs y ${window.ALL_VALID_COLOR_NAMES.length} nombres.`);
+        } catch (error) {
+            console.error('❌ Error cargando catálogos:', error);
+            window.ALL_MASTER_NKS = [];
+            window.ALL_VALID_COLOR_NAMES = [];
+        }
     }
     
-    const hist = AppState.getHistorial(id);
-    const modal = document.getElementById('modalHistorial');
-    const container = document.getElementById('historialContainer');
-    
-    if (!modal || !container) return;
-    
-    let html = '';
-    if (hist.length === 0) {
-        html = '<p class="no-data" style="text-align:center; padding:20px;">📭 No hay historial de ediciones</p>';
-    } else {
-        html = hist.map((e, i) => `
-            <div class="historial-item" style="background:#0D1117; border-radius:12px; padding:12px; margin-bottom:12px; border:1px solid rgba(0,212,255,0.2);">
-                <div style="color:#00D4FF; margin-bottom:8px;">📅 ${new Date(e.fecha).toLocaleString()}</div>
-                <div style="margin-bottom:8px;">👤 ${e.usuario || 'Desconocido'}</div>
-                <div style="margin-bottom:8px;">📝 ${e.descripcion || 'Sin descripción'}</div>
-                <div style="display:flex; gap:16px; flex-wrap:wrap;">
-                    <div style="border-left:3px solid #FF4444; padding-left:8px;">
-                        <div style="font-size:11px; color:#FF4444;">ANTERIOR</div>
-                        <div>PO: ${e.anterior.po}</div>
-                        <div>Proceso: ${e.anterior.proceso}</div>
-                        <div>v${e.anterior.version}</div>
-                    </div>
-                    <div style="border-left:3px solid #00FF88; padding-left:8px;">
-                        <div style="font-size:11px; color:#00FF88;">NUEVO</div>
-                        <div>PO: ${e.nuevo.po}</div>
-                        <div>Proceso: ${e.nuevo.proceso}</div>
-                        <div>v${e.nuevo.version}</div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+    loadSavedState() {
+        const saved = loadComparatorState();
+        if (saved) {
+            this.primaryData = saved.primaryData;
+            this.secondaryData = saved.secondaryData;
+            this.results = saved.results;
+            this.selectedPending = saved.selectedPending;
+            this.deletedPending = saved.deletedPending;
+            this.groupSelections = saved.groupSelections;
+            this.manualGroupSelections = saved.manualGroupSelections;
+        }
     }
     
-    html += `
-        <div class="historial-item" style="background:#161B22; border-radius:12px; padding:12px; border-left:4px solid #00D4FF;">
-            <div style="color:#00D4FF;">⚡ VERSIÓN ACTUAL v${reg.version}</div>
-            <div>PO: ${reg.po}</div>
-            <div>Proceso: ${reg.proceso}</div>
-            <div>👤 Última modificación: ${reg.usuarioModifico || 'Sistema'}</div>
-            ${reg.observacion ? `<div>📝 ${reg.observacion}</div>` : ''}
-        </div>
-    `;
-    
-    container.innerHTML = html;
-    modal.classList.add('show');
-};
-
-window.imprimirEtiqueta = (id) => {
-    if (window.PrintingModule && window.PrintingModule.imprimirEtiqueta) {
-        window.PrintingModule.imprimirEtiqueta(id);
+    saveCurrentState() {
+        saveComparatorState(
+            this.primaryData, this.secondaryData, this.results,
+            this.selectedPending, this.deletedPending,
+            this.groupSelections, this.manualGroupSelections
+        );
     }
-};
+    
+    updateUIForUser() {
+        const user = this.auth.getCurrentUser();
+        const displaySpan = document.getElementById('currentUserDisplay');
+        if (displaySpan) {
+            displaySpan.textContent = `👤 ${user.username}${user.isMaster ? ' (MASTER)' : ''}`;
+        }
 
-window.filtrarPorSemana = (semana) => {
-    if (AppState.currentSemana == semana) {
-        AppState.limpiarFiltros();
-        if (window.Notifications) Notifications.info('📅 Filtro de semana eliminado');
-    } else {
-        AppState.setFiltros(AppState.currentSearch, semana);
-        if (window.Notifications) Notifications.success(`📅 Semana ${semana} seleccionada`);
+        this.ensureInboxBell();
+        
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            const requiredPerm = item.dataset.perm;
+            if (requiredPerm && !this.auth.hasPermission(requiredPerm)) {
+                item.style.display = 'none';
+            } else {
+                item.style.display = 'flex';
+            }
+        });
+        
+        const adminBtn = document.getElementById('adminBtn');
+        if (adminBtn) {
+            adminBtn.onclick = () => window.open('admin.html', '_blank');
+        }
+        
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.onclick = () => this.logout();
     }
-    if (window.TableUI) TableUI.actualizar();
-};
-
-document.querySelectorAll('.modal-close, .close-btn, .cancel-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.modal').forEach(m => m.classList.remove('show'));
-    });
-});
-
-window.addEventListener('click', (e) => {
-    document.querySelectorAll('.modal').forEach(modal => {
-        if (e.target === modal) modal.classList.remove('show');
-    });
-});
-
-window.mandarAProduccion = async (event, id) => {
-    const btn = event.currentTarget;
-    if (!confirm('¿Desea marcar este registro como EN PRODUCCIÓN?')) return;
     
-    // Feedback visual inmediato
-    const originalContent = btn.innerHTML;
-    btn.innerHTML = '⌛';
-    btn.disabled = true;
-    btn.style.opacity = '0.7';
-
-    if (window.Notifications) Notifications.info('🚀 Iniciando producción...');
+    logout() {
+        this.auth.logout();
+        window.location.href = 'login.html';
+    }
     
-    try {
-        if (window.SupabaseClient && window.SupabaseClient.client) {
-            const { error } = await window.SupabaseClient.client
-                .from('registros')
-                .update({ 
-                    en_produccion: true, 
-                    actualizado: new Date().toISOString()
-                })
-                .eq('id', id);
+    bindEvents() {
+        const primaryInput = document.getElementById('primaryFileInput');
+        const secondaryInput = document.getElementById('secondaryFileInput');
+        const compareBtn = document.getElementById('compareBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const replaceAllSecondaryBtn = document.getElementById('replaceAllSecondaryBtn');
+        const clearCacheBtn = document.getElementById('clearCacheBtn');
+        
+        if (primaryInput) primaryInput.addEventListener('change', (e) => this.loadPrimaryFile(e));
+        if (secondaryInput) secondaryInput.addEventListener('change', (e) => this.loadSecondaryFile(e));
+        if (compareBtn) compareBtn.addEventListener('click', () => this.compareFiles());
+        if (exportBtn) exportBtn.addEventListener('click', () => this.exportFiles());
+        if (replaceAllSecondaryBtn) replaceAllSecondaryBtn.addEventListener('click', () => this.replaceAllWithSecondary());
+        if (clearCacheBtn) clearCacheBtn.addEventListener('click', () => this.clearCache());
+    }
+    
+    async loadPrimaryFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        try {
+            const result = await this.processFileWithValidation(file, 'primary');
+            if (result) {
+                this.primaryData = result.records;
+                this.primaryFileName = result.fileName;
+                this.updateFileInfo('primary', result.fileName, this.primaryData.length);
+                this.renderDataList('primary', this.primaryData);
+                this.saveCurrentState();
+                
+                if (result.correctionsApplied > 0 || result.duplicatesResolved > 0) {
+                    showNotification('Archivo Cargado', `Se procesaron ${this.primaryData.length} registros. (Correcciones: ${result.correctionsApplied}, Duplicados: ${result.duplicatesResolved})`, 'success');
+                } else {
+                    showNotification('Archivo Cargado', `Se cargaron ${this.primaryData.length} registros correctamente.`, 'success');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error:', error);
+            alert(`❌ Error al cargar archivo principal: ${error.message || error}`);
+        }
+    }
+    
+    async loadSecondaryFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        try {
+            const result = await this.processFileWithValidation(file, 'secondary');
+            if (result) {
+                this.secondaryData = result.records;
+                this.secondaryFileName = result.fileName;
+                this.updateFileInfo('secondary', result.fileName, this.secondaryData.length);
+                this.renderDataList('secondary', this.secondaryData);
+                this.saveCurrentState();
+                
+                if (result.correctionsApplied > 0 || result.duplicatesResolved > 0) {
+                    showNotification('Archivo Cargado', `Se procesaron ${this.secondaryData.length} registros. (Correcciones: ${result.correctionsApplied}, Duplicados: ${result.duplicatesResolved})`, 'success');
+                } else {
+                    showNotification('Archivo Cargado', `Se cargaron ${this.secondaryData.length} registros correctamente.`, 'success');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error:', error);
+            alert(`❌ Error al cargar archivo secundario: ${error.message || error}`);
+        }
+    }
+
+    async processFileWithValidation(file, fileType) {
+        console.log(`📁 Procesando archivo ${fileType}: ${file.name}`);
+        const { records: rawRecords, fileName } = await loadFile(file, true); 
+        
+        // 1. Calcular sugerencia de NK basado en lo predominante en el archivo
+        const nkCounts = {};
+        rawRecords.forEach(r => {
+            if (r.nk) {
+                const cleanNk = (r.nk || '').trim().toUpperCase();
+                nkCounts[cleanNk] = (nkCounts[cleanNk] || 0) + 1;
+            }
+        });
+        const suggestedNk = Object.entries(nkCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+        // 2. Detectar duplicados y mala nomenclatura básica
+        const duplicateGroups = findDuplicateGroups(rawRecords);
+        const hasParentheses = rawRecords.some(r => /\([^)]*\)/.test(r.name)); 
+        
+        // 3. NUEVO: Detectar si faltan NKs según la tabla maestra
+        const masterNks = (window.ALL_MASTER_NKS || []).map(n => n.toUpperCase());
+        const hasMissingNks = rawRecords.some(r => !r.nk || (masterNks.length > 0 && !masterNks.includes(r.nk.toUpperCase())));
+
+        if (duplicateGroups.length > 0 || hasParentheses || hasMissingNks) {
+            showNotification('Auditoría de Archivo', `Se detectaron problemas que requieren su atención. Iniciando asistente...`, 'info');
+        }
+
+        let currentRecords = [...rawRecords];
+        let duplicatesResolved = 0;
+
+        // 4. Resolver Duplicados
+        if (duplicateGroups.length > 0) {
+            const indicesToRemove = await showDuplicateModal(duplicateGroups);
+            if (indicesToRemove.length > 0) {
+                currentRecords = currentRecords.filter((_, idx) => !indicesToRemove.includes(idx));
+                duplicatesResolved = duplicateGroups.length;
+            }
+        }
+
+        // 5. Resolver Nombres Mal Escritos y NKs Faltantes
+        let correctionsApplied = 0;
+        const onCorrection = (oldName, newName, reason) => {
+            correctionsApplied++;
+            this.saveCorrectionHistory(oldName, newName, reason);
+        };
+
+        const validationResult = await validateAndCorrectRecords(currentRecords, fileType, onCorrection, suggestedNk);
+        
+        if (validationResult.records.length === 0 && currentRecords.length > 0) {
+            return null; // Cancelado
+        }
+
+        return {
+            records: validationResult.records,
+            fileName,
+            correctionsApplied,
+            duplicatesResolved
+        };
+    }
+    
+    compareFiles() {
+        if (this.primaryData.length === 0) {
+            alert('⚠️ Cargue archivo principal primero.');
+            return;
+        }
+        if (this.secondaryData.length === 0) {
+            alert('⚠️ Cargue archivo secundario primero.');
+            return;
+        }
+        
+        console.log('🔍 Comparando archivos...');
+        console.log('Primary:', this.primaryData.length, 'colores');
+        console.log('Secondary:', this.secondaryData.length, 'colores');
+        
+        this.selectedPending.clear();
+        this.deletedPending.clear();
+        this.groupSelections.clear();
+        this.manualGroupSelections.clear();
+        
+        this.results = compareFiles(this.primaryData, this.secondaryData);
+        console.log('📊 Resultados:', this.results.length);
+        this.logComparisonSession();
+        
+        renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+        this.validateExportReady();
+        this.saveCurrentState();
+        
+        showNotification('Comparación completada', `${this.results.length} registros procesados`, 'success');
+    }
+    
+    selectGroup(groupId, source) {
+        this.groupSelections.set(groupId, source);
+        this.manualGroupSelections.add(groupId);
+        renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+        this.validateExportReady();
+        this.saveCurrentState();
+    }
+    
+    replaceAllWithSecondary() {
+        const groups = new Set();
+        for (const item of this.results) {
+            if (item.groupId && (item.matchType === 'exact' || item.matchType === 'equivalent')) {
+                if (!this.manualGroupSelections.has(item.groupId)) {
+                    groups.add(item.groupId);
+                }
+            }
+        }
+        for (const groupId of groups) {
+            this.groupSelections.set(groupId, 'secondary');
+        }
+        renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+        this.validateExportReady();
+        this.saveCurrentState();
+        
+        const replaceBtn = document.getElementById('replaceAllSecondaryBtn');
+        const originalText = replaceBtn.innerHTML;
+        replaceBtn.innerHTML = `✅ REEMPLAZADOS ${groups.size} GRUPOS!`;
+        replaceBtn.style.opacity = '0.7';
+        setTimeout(() => {
+            replaceBtn.innerHTML = originalText;
+            replaceBtn.style.opacity = '1';
+        }, 1500);
+        
+        showNotification('Valores actualizados', `${groups.size} grupos cambiados a valor secundario`, 'info');
+    }
+    
+    togglePendingAdd(itemId) {
+        if (this.selectedPending.has(itemId)) return;
+        this.selectedPending.add(itemId);
+        this.deletedPending.delete(itemId);
+        renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+        this.validateExportReady();
+        this.saveCurrentState();
+    }
+    
+    togglePendingDelete(itemId) {
+        if (this.deletedPending.has(itemId)) return;
+        this.deletedPending.add(itemId);
+        this.selectedPending.delete(itemId);
+        renderResults(this.results, this.groupSelections, this.selectedPending, this.deletedPending);
+        this.validateExportReady();
+        this.saveCurrentState();
+    }
+    
+    validateExportReady() {
+        const exportBtn = document.getElementById('exportBtn');
+        if (!exportBtn) return;
+        
+        const pendingUndecided = this.results.filter(item => 
+            (item.matchType === 'pending_primary' || item.matchType === 'pending_secondary') && 
+            !this.selectedPending.has(item.id) && 
+            !this.deletedPending.has(item.id)
+        );
+        
+        const isReady = pendingUndecided.length === 0;
+        exportBtn.disabled = !isReady;
+        
+        const validationMsg = document.getElementById('validationMessage');
+        if (validationMsg) {
+            if (pendingUndecided.length > 0) {
+                validationMsg.innerHTML = `⚠️ Faltan ${pendingUndecided.length} colores pendientes por decidir (Agregar o Eliminar)`;
+                validationMsg.style.display = 'block';
+            } else {
+                validationMsg.style.display = 'none';
+            }
+        }
+    }
+    
+    exportFiles() {
+        const success = exportResults(
+            this.results, this.groupSelections, this.selectedPending, this.deletedPending,
+            this.primaryData, this.secondaryData
+        );
+        if (success) this.saveCurrentState();
+    }
+    
+    clearCache() {
+        if (confirm('¿Estás seguro de que quieres limpiar toda la caché? Se perderán los datos no exportados.')) {
+            clearAllCache();
+            this.primaryData = [];
+            this.secondaryData = [];
+            this.primaryFileName = '';
+            this.secondaryFileName = '';
+            this.results = [];
+            this.selectedPending.clear();
+            this.deletedPending.clear();
+            this.groupSelections.clear();
+            this.manualGroupSelections.clear();
+            this.updateFileInfo('primary', 'Ningún archivo cargado', 0);
+            this.updateFileInfo('secondary', 'Ningún archivo cargado', 0);
+            this.renderDataList('primary', []);
+            this.renderDataList('secondary', []);
+            document.getElementById('resultsPanel').style.display = 'none';
+            document.getElementById('exportBtn').disabled = true;
+            alert('✅ Caché limpiada correctamente');
+        }
+    }
+    
+    saveCorrectionHistory(oldName, newName, reason) {
+        let corrections = [];
+        const history = localStorage.getItem('nameCorrectionHistory');
+        if (history) {
+            try { corrections = JSON.parse(history); } catch(e) {}
+        }
+        const currentUser = this.auth.getCurrentUser()?.username || 'usuario';
+        corrections.unshift({
+            id: Date.now(),
+            oldName: oldName,
+            newName: newName,
+            reason: reason,
+            user: currentUser,
+            date: new Date().toISOString()
+        });
+        if (corrections.length > 100) corrections = corrections.slice(0, 100);
+        localStorage.setItem('nameCorrectionHistory', JSON.stringify(corrections));
+    }
+    
+    updateFileInfo(type, filename, count) {
+        const infoDiv = document.getElementById(`${type}FileInfo`);
+        if (infoDiv) {
+            const filenameSpan = infoDiv.querySelector('.filename');
+            const recordCountSpan = infoDiv.querySelector('.record-count');
+            if (filenameSpan) filenameSpan.textContent = filename;
+            if (recordCountSpan) recordCountSpan.textContent = `${count} registro${count !== 1 ? 's' : ''}`;
+        }
+    }
+    
+    renderDataList(type, data) {
+        const container = document.getElementById(`${type}DataList`);
+        if (!container) return;
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="empty-list">Sin datos cargados</div>';
+            return;
+        }
+        container.innerHTML = data.map(color => {
+            return `<div class="data-item"><span class="nk">${color.nk || 'SIN NK'}</span><span class="name">${color.baseName}</span></div>`;
+        }).join('');
+    }
+    
+    initViews() {
+        this.paletteValidatorView = new PaletteValidatorView(this);
+        this.developmentView = new DevelopmentView(this);
+        this.historyView = new HistoryView(this);
+        this.assignmentView = new AssignmentView(this);
+        this.adminView = new AdminView(this, this.auth);
+        this.reportsView = new ReportsView(this);
+        this.dashboardView = new DashboardView(this);
+        this.linearizationValidatorView = new LinearizationValidatorView(this);
+    }
+    
+    initMenuNavigation() {
+        const menuItems = document.querySelectorAll('.menu-item');
+        const views = {
+            comparator: document.getElementById('comparatorView'),
+            history: document.getElementById('historyView'),
+            paletteValidator: document.getElementById('paletteValidatorView'),
+            development: document.getElementById('developmentView'),
+            assignment: document.getElementById('assignmentView'),
+            reports: document.getElementById('reportsView'),
+            dashboard: document.getElementById('dashboardView'),
+            linearizationValidator: document.getElementById('linearizationValidatorView'),
+            admin: document.getElementById('adminView')
+        };
+        
+        const switchView = (viewName) => {
+            console.log(`🚀 Cambiando a vista: ${viewName}`);
+            localStorage.setItem('currentView', viewName);
+            
+            Object.values(views).forEach(view => {
+                if (view) view.classList.remove('active');
+            });
+            if (views[viewName]) views[viewName].classList.add('active');
+            
+            menuItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.view === viewName) item.classList.add('active');
+            });
+            
+            if (viewName === 'paletteValidator' && this.paletteValidatorView) {
+                this.paletteValidatorView.renderTable();
+            }
+            if (viewName === 'development' && this.developmentView) {
+                this.developmentView.render();
+            }
+            if (viewName === 'history' && this.historyView) {
+                this.historyView.render();
+            }
+            if (viewName === 'assignment' && this.assignmentView) {
+                this.assignmentView.updateTxtList();
+                this.assignmentView.renderHistory();
+            }
+            if (viewName === 'reports' && this.reportsView) {
+                this.reportsView.updateFilters();
+                this.reportsView.render();
+            }
+            if (viewName === 'dashboard' && this.dashboardView) {
+                this.dashboardView.render();
+            }
+            if (viewName === 'linearizationValidator' && this.linearizationValidatorView) {
+                this.linearizationValidatorView.render();
+            }
+            if (viewName === 'admin' && this.adminView) {
+                this.adminView.render();
+            }
+        };
+        this.switchView = switchView;
+        
+        menuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const viewName = item.dataset.view;
+                if (viewName && this.auth.hasPermission(viewName)) {
+                    switchView(viewName);
+                }
+            });
+        });
+    }
+
+    ensureInboxBell() {
+        const userInfo = document.querySelector('.header .user-info');
+        if (!userInfo) return;
+        if (document.getElementById('inboxBellBtn')) return;
+
+        const bellBtn = document.createElement('button');
+        bellBtn.id = 'inboxBellBtn';
+        bellBtn.className = 'logout-btn';
+        bellBtn.style.marginRight = '0.5rem';
+        bellBtn.innerHTML = '<i class="fas fa-bell"></i> Bandeja <span id="inboxBellCount" style="margin-left:0.25rem;">0</span>';
+        bellBtn.onclick = () => {
+            if (this.switchView) this.switchView('history');
+        };
+        userInfo.insertBefore(bellBtn, userInfo.firstChild);
+    }
+
+    async loadInbox() {
+        try {
+            console.log('📡 Cargando bandeja desde base de datos...');
+            const { data, error } = await supabase
+                .from('inbox')
+                .select('*')
+                .order('created_at', { ascending: false });
             
             if (error) throw error;
-            
-            // Actualizar estado local
-            if (window.AppState) {
-                const reg = AppState.registros.find(r => r.id === id);
-                if (reg) {
-                    reg.en_produccion = true;
-                    reg.actualizado = new Date().toISOString();
-                }
-                if (window.onStateChange) window.onStateChange();
-            }
-
-            // Notificación de éxito
-            Notifications.success('✅ Registro enviado a Producción');
-
-            // Sincronizar automáticamente con el panel de producción si está visible
-            if (window.ProductionModule && window.ProductionModule.cargarProduccion) {
-                window.ProductionModule.cargarProduccion();
-            }
-
-            // Preguntar por impresión inmediata
-            setTimeout(() => {
-                if (confirm('🚀 ¿Deseas imprimir la etiqueta QR para esta orden ahora mismo?')) {
-                    window.imprimirEtiqueta(id);
-                }
-            }, 500);
-
+            this.inboxItems = data || [];
+            console.log(`📥 ${this.inboxItems.length} mensajes cargados de la base de datos.`);
+        } catch (e) {
+            console.warn('⚠️ Error al cargar desde DB, usando respaldo local:', e);
+            const raw = localStorage.getItem('alphaColorInbox');
+            this.inboxItems = raw ? JSON.parse(raw) : [];
         }
-    } catch (error) {
-        console.error('Error al mandar a producción:', error);
-        Notifications.error('Error al actualizar estado');
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-        btn.style.opacity = '1';
+        this.updateInboxBell();
     }
-};
 
-console.log('✅ main.js cargado - Con botón de Producción unificado');
+    logComparisonSession() {
+        const unmatched = this.results.filter(item =>
+            item.matchType === 'pending_primary' || item.matchType === 'pending_secondary'
+        ).length;
+        const invalidCmyk = [...this.primaryData, ...this.secondaryData].filter(rec =>
+            !Array.isArray(rec.cmyk) || rec.cmyk.length < 4 || rec.cmyk.some(v => !Number.isFinite(v) || v < 0 || v > 100)
+        ).length;
+        const entry = {
+            id: `cmp_${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            user: this.auth.getCurrentUser()?.username || 'usuario',
+            primaryFile: this.primaryFileName || 'principal',
+            secondaryFile: this.secondaryFileName || 'secundario',
+            unmatched,
+            invalidCmyk
+        };
+        let logs = [];
+        try {
+            logs = JSON.parse(localStorage.getItem('comparisonReportLogs') || '[]');
+        } catch (e) {
+            logs = [];
+        }
+        logs.unshift(entry);
+        if (logs.length > 2000) logs = logs.slice(0, 2000);
+        localStorage.setItem('comparisonReportLogs', JSON.stringify(logs));
+    }
+
+    async saveInbox() {
+        // En el nuevo sistema, el guardado es individual por mensaje en addToInbox
+        // pero mantenemos esto para guardar la caché local como respaldo
+        localStorage.setItem('alphaColorInbox', JSON.stringify(this.inboxItems));
+    }
+
+    getInboxItems() {
+        return [...this.inboxItems].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    updateInboxBell() {
+        const count = this.inboxItems.filter(item => !item.is_read && !item.read).length;
+        const bellCount = document.getElementById('inboxBellCount');
+        if (bellCount) bellCount.textContent = String(count);
+        const menuHistory = document.querySelector('.menu-item[data-view="history"] span');
+        if (menuHistory) menuHistory.textContent = count > 0 ? `Bandeja (${count})` : 'Bandeja';
+    }
+
+    async addToInbox(fileName, content, reason, plotter, colorCount, extra = {}) {
+        const currentUser = this.auth.getCurrentUser()?.username || 'usuario';
+        const item = {
+            subject: fileName,
+            content,
+            reason,
+            plotter,
+            color_count: colorCount,
+            created_by: currentUser,
+            created_at: new Date().toISOString(),
+            is_read: false,
+            assignment_id: extra.assignmentId || null
+        };
+
+        try {
+            // Intentar guardar en base de datos
+            const { error } = await supabase.from('inbox').insert(item);
+            if (error) throw error;
+            console.log('✅ Mensaje guardado en base de datos.');
+        } catch (e) {
+            console.error('❌ Error guardando en base de datos, guardando localmente:', e);
+            // Fallback local
+            item.id = `inbox_${Date.now()}`;
+            this.inboxItems.unshift(item);
+            this.saveInbox();
+        }
+
+        // Recargar para ver el cambio
+        await this.loadInbox();
+        
+        if (this.historyView?.render) this.historyView.render();
+        if (this.switchView) this.switchView('history');
+    }
+
+    async markInboxAsRead(id, read = true) {
+        try {
+            // Si el ID es un UUID (base de datos)
+            if (typeof id === 'string' && id.includes('-')) {
+                const { error } = await supabase
+                    .from('inbox')
+                    .update({ is_read: read })
+                    .eq('id', id);
+                if (error) throw error;
+            } else {
+                // Si es un ID local
+                const item = this.inboxItems.find(x => x.id === id);
+                if (item) item.read = read;
+                this.saveInbox();
+            }
+        } catch (e) {
+            console.error('Error al marcar como leído:', e);
+        }
+        
+        await this.loadInbox();
+        if (this.historyView?.render) this.historyView.render();
+    }
+
+    loadInboxItemAsSecondary(id) {
+        const item = this.inboxItems.find(x => x.id === id);
+        if (!item) {
+            alert('❌ No se encontró el mensaje de bandeja.');
+            return false;
+        }
+        try {
+            const records = parseTxtContent(item.content);
+            if (!records.length) {
+                alert('⚠️ El mensaje no contiene colores válidos.');
+                return false;
+            }
+            this.secondaryData = records;
+            this.updateFileInfo('secondary', item.subject || 'Bandeja', records.length);
+            this.renderDataList('secondary', this.secondaryData);
+            this.saveCurrentState();
+            this.markInboxAsRead(id, true);
+            if (this.switchView) this.switchView('comparator');
+            alert(`✅ Cargado como secundario: ${records.length} colores.`);
+            return true;
+        } catch (error) {
+            alert(`❌ Error cargando secundario desde bandeja: ${error.message || error}`);
+            return false;
+        }
+    }
+
+    setupRealtimeSync() {
+        try {
+            console.log('📡 Iniciando escucha en tiempo real (Asignaciones y Progreso)...');
+            
+            // Suscribirse a cambios en Asignaciones
+            supabase
+                .channel('assignments_realtime')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => {
+                    this.refreshDashboard('assignments');
+                })
+                .subscribe();
+
+            // Suscribirse a cambios en Progreso de Validación
+            supabase
+                .channel('progress_realtime')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'validation_progress' }, () => {
+                    this.refreshDashboard('validation_progress');
+                })
+                .subscribe();
+
+            // RECARGA INTELIGENTE: Eliminamos el heartbeat de 5s y lo dejamos solo como respaldo cada 2 minutos
+            setInterval(() => {
+                this.refreshDashboard('heartbeat');
+            }, 120000);
+            
+        } catch (e) {
+            console.error('Error en setupRealtimeSync:', e);
+        }
+    }
+
+    initScheduledBackup() {
+        console.log('⏰ Programador de backup activado (5:40 PM)');
+        setInterval(() => {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            
+            // Si son las 5:40 PM (17:40) y el usuario tiene permiso de backup
+            if (hours === 17 && minutes === 40) {
+                const alreadyDoneToday = localStorage.getItem('lastBackupDate') === now.toDateString();
+                if (!alreadyDoneToday && this.auth.hasPermission('backup')) {
+                    this.triggerBackup();
+                }
+            }
+        }, 60000); // Revisar cada minuto
+    }
+
+    async triggerBackup() {
+        try {
+            console.log('📦 Iniciando backup automático de seguridad...');
+            const tables = [
+                'usuarios', 
+                'assignments', 
+                'validation_progress', 
+                'library_txt', 
+                'valid_color_names',
+                'inbox',
+                'equivalency_groups'
+            ];
+            const backupData = {
+                timestamp: new Date().toISOString(),
+                version: '1.1',
+                data: {}
+            };
+
+            for (const table of tables) {
+                const { data } = await supabase.from(table).select('*');
+                backupData.data[table] = data || [];
+            }
+
+            const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AlphaColor_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            localStorage.setItem('lastBackupDate', new Date().toDateString());
+            showNotification('✅ Backup automático completado con éxito', 'success');
+        } catch (e) {
+            console.error('Error en backup:', e);
+        }
+    }
+
+    refreshDashboard(source) {
+        if (this.dashboardView) {
+            console.log(`🔄 Refrescando dashboard (Origen: ${source})`);
+            this.dashboardView.render().catch(err => console.error('Error refrescando dashboard:', err));
+        }
+    }
+}
+
+new AlphaColorMatch();

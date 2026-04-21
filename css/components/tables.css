@@ -1,0 +1,219 @@
+/* ============================================ */
+/* TABLES CSS - Estilos profesionales para tablas */
+/* Bordes menos redondos, estilo limpio */
+/* ============================================ */
+
+.results-panel {
+    background: #0c0c12;
+    border: 1px solid #2d3748;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.results-header {
+    background: #111117;
+    padding: 1rem;
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.results-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #eab308;
+}
+
+.stats-badge {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.badge.primary {
+    background: #2d4ed6;
+    color: white;
+}
+
+.badge.secondary {
+    background: #b45309;
+    color: white;
+}
+
+.badge.match {
+    background: #15803d;
+    color: white;
+}
+
+.badge.missing {
+    background: #991b1b;
+    color: white;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Courier New', monospace;
+}
+
+.results-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    background: #0a0a0a;
+    color: #9ca3af;
+    font-weight: 600;
+    font-size: 0.7rem;
+    border-bottom: 1px solid #2d3748;
+    font-family: 'Rubik', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.results-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #1e1e2c;
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+    vertical-align: top;
+}
+
+.results-table tr:hover {
+    background: rgba(0, 229, 255, 0.05);
+}
+
+.match-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.match-badge.yes {
+    background: #15803d;
+    color: white;
+}
+
+.match-badge.no {
+    background: #991b1b;
+    color: white;
+}
+
+.match-badge[style*="background:#b45309"] {
+    background: #b45309 !important;
+    color: white;
+}
+
+.selection-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-direction: column;
+}
+
+.selection-btn {
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #4b5563;
+    background: #1f1f2a;
+    color: #e2e8f0;
+    text-align: center;
+    font-family: 'Rubik', sans-serif;
+}
+
+.selection-btn:hover {
+    transform: translateY(-1px);
+    border-color: #00e5ff;
+}
+
+.selection-btn.active-primary {
+    background: #00e5ff !important;
+    border-color: #00e5ff !important;
+    color: #0a0a0a !important;
+}
+
+.selection-btn.active-secondary {
+    background: #b45309 !important;
+    border-color: #b45309 !important;
+    color: white !important;
+}
+
+.cmyk-small {
+    font-size: 0.55rem;
+    font-family: monospace;
+    display: block;
+    color: #9ca3af;
+    margin-top: 0.2rem;
+}
+
+.manual-badge {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.55rem;
+    color: #fbbf24;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.pending-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-direction: column;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .results-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .stats-badge {
+        flex-wrap: wrap;
+    }
+    
+    .results-table {
+        font-size: 0.65rem;
+    }
+    
+    .results-table th,
+    .results-table td {
+        padding: 0.5rem;
+    }
+    
+    .selection-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .pending-buttons {
+        flex-direction: row;
+    }
+    
+    .selection-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.6rem;
+    }
+    
+    .cmyk-small {
+        font-size: 0.5rem;
+    }
+}
