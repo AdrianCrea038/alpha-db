@@ -334,9 +334,39 @@
 }
 
 @media (max-width: 768px) {
-    .admin-container { padding: 1rem; }
-    .stats-cards { grid-template-columns: 1fr; }
-    .usuarios-table th, .usuarios-table td, .metas-table th, .metas-table td { padding: 0.5rem; font-size: 0.7rem; }
-    .btn-editar, .btn-cambiar-pass, .btn-eliminar { padding: 0.2rem 0.5rem; font-size: 0.65rem; }
-    .meta-base-section { flex-direction: column; align-items: stretch; }
+    .admin-container { 
+        padding: 0.8rem; 
+        max-width: 100%;
+        padding-bottom: 90px;
+    }
+    .admin-header {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .admin-header h1 { font-size: 1.1rem; }
+    .stats-cards { grid-template-columns: repeat(2, 1fr) !important; gap: 0.8rem; }
+    .stat-card .numero { font-size: 1.4rem; }
+    
+    .usuarios-table th, .usuarios-table td, .metas-table th, .metas-table td { 
+        padding: 0.4rem; 
+        font-size: 0.65rem; 
+    }
+    
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .btn-editar, .btn-cambiar-pass, .btn-eliminar { 
+        padding: 6px 4px; 
+        font-size: 0.6rem; 
+        width: 100%;
+        margin: 0;
+        text-align: center;
+    }
+    .meta-base-section { padding: 0.8rem; gap: 0.5rem; }
+    .meta-base-input { width: 100%; }
 }
+

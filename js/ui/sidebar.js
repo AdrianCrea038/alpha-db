@@ -70,7 +70,10 @@ const Sidebar = {
         
         document.body.insertAdjacentHTML('afterbegin', menuHTML);
         const container = document.querySelector('.container');
-        if (container) { container.style.marginLeft = '80px'; container.style.maxWidth = 'calc(100% - 80px)'; }
+        if (container && window.innerWidth > 768) { 
+            container.style.marginLeft = '80px'; 
+            container.style.maxWidth = 'calc(100% - 80px)'; 
+        }
     },
     
     verificarPermisosMenu: function() {

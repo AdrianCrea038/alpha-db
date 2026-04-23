@@ -32,7 +32,7 @@ const SolicitudesModule = {
                     <h2 style="color: #00D4FF; font-size: 1.3rem; margin: 0; font-weight: 900; letter-spacing: 1px;">📋 PANEL DE SOLICITUDES</h2>
                 </div>
 
-                <div class="solicitudes-grid" style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; align-items: start;">
+                <div class="solicitudes-grid">
                     <!-- COLUMNA IZQUIERDA: REPORTE -->
                     <div class="col-reporte" style="display: flex; flex-direction: column; gap: 1rem;">
                         <div style="background: #161B22; padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(0,212,255,0.2);">

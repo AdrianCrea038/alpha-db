@@ -169,6 +169,14 @@
 .estado-badge.estado-aprobado { background: rgba(0, 255, 136, 0.2); color: #00FF88; }
 .estado-badge.estado-rechazado { background: rgba(255, 68, 68, 0.2); color: #FF4444; }
 
+/* ========== SOLICITUDES MODULE ========== */
+.solicitudes-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
 /* ========== MÓDULO DE ÓRDENES ========== */
 .ordenes-import-container {
     background: #161B22;
