@@ -138,12 +138,55 @@
         padding: 4px 8px !important;
     }
 
-    /* Modal más adaptado */
-    .modal-content {
-        width: 95% !important;
-        padding: 1rem !important;
-        margin: 10px auto !important;
+    /* Bandeja de Entrada Responsive (Master-Detail) */
+    #inboxPanel {
+        grid-template-columns: 100px 1fr !important; /* Sidebar siempre a la izquierda */
+        height: calc(100vh - 120px) !important;
+        display: grid !important;
+    }
+
+    #inboxPanel > div:first-child {
+        display: flex !important;
+        flex-direction: column !important;
+        overflow-y: auto !important;
+        padding: 0.8rem 0.4rem !important;
+        background: #161B22 !important;
+        border-right: 1px solid #30363D !important;
+    }
+
+    #inboxPanel > div:first-child h3 { display: none !important; }
+
+    .inbox-folder-btn {
+        flex-direction: column !important;
+        text-align: center !important;
+        padding: 0.6rem 0.2rem !important;
+        font-size: 0.65rem !important;
+        gap: 4px !important;
+    }
+
+    /* Lógica de navegación: Lista vs Detalle */
+    #messageListContainer, #inboxPanel > div:nth-child(2) {
+        display: flex !important;
+        flex-direction: column !important; /* Asegura que buscador y lista sean verticales */
+    }
+
+    #inboxDetailView {
+        display: none !important; /* Oculto por defecto en móvil */
+    }
+
+    /* Cuando se selecciona un mensaje */
+    #inboxPanel.show-detail #messageListContainer, 
+    #inboxPanel.show-detail > div:nth-child(2) {
+        display: none !important; /* Ocultamos la lista */
+    }
+
+    #inboxPanel.show-detail #inboxDetailView {
+        display: flex !important; /* Mostramos el detalle */
+        grid-column: 2; /* En el espacio de la lista */
     }
 }
+
+
+
 
 

@@ -6,6 +6,7 @@ const InboxModule = {
     itemsActuales: [],
     tipoFiltro: 'todos',
     idSeleccionado: null,
+    idsOcultos: JSON.parse(localStorage.getItem('alpha_inbox_hidden') || '[]'),
     
     init: async function() {
         console.log('📥 Módulo de Bandeja (Email Center) iniciado');
@@ -33,7 +34,7 @@ const InboxModule = {
         
         // 3. Inyectar el diseño dentro de su propio panel
         inboxPanel.style.display = 'grid';
-        inboxPanel.style.gridTemplateColumns = '220px 380px 1fr';
+        inboxPanel.style.gridTemplateColumns = '120px 380px 1fr';
         inboxPanel.style.height = 'calc(100vh - 140px)';
         inboxPanel.style.background = '#0D1117';
         inboxPanel.style.borderRadius = '12px';
@@ -43,19 +44,19 @@ const InboxModule = {
 
         inboxPanel.innerHTML = `
                 <!-- PANEL 1: CARPETAS -->
-                <div style="background: #161B22; border-right: 1px solid #30363D; padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                    <h3 style="color: #00D4FF; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1.5rem;">BANDEJA DE ENTRADA</h3>
+                <div style="background: #161B22; border-right: 1px solid #30363D; padding: 1rem 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <h3 style="color: #00D4FF; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; text-align: center;">INBOX</h3>
                     
-                    <div onclick="InboxModule.filtrarPorTipo('todos')" class="inbox-folder-btn active" data-type="todos" style="padding: 0.8rem; border-radius: 8px; cursor: pointer; color: #00D4FF; font-weight: 700; font-size: 0.85rem; background: rgba(0,212,255,0.1); display: flex; align-items: center; gap: 10px; transition: all 0.2s;">
+                    <div onclick="InboxModule.filtrarPorTipo('todos')" class="inbox-folder-btn active" data-type="todos" style="padding: 0.6rem 0.4rem; border-radius: 8px; cursor: pointer; color: #00D4FF; font-weight: 700; font-size: 0.75rem; background: rgba(0,212,255,0.1); display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                         <span>📥</span> Todos
                     </div>
-                    <div onclick="InboxModule.filtrarPorTipo('produccion')" class="inbox-folder-btn" data-type="produccion" style="padding: 0.8rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; transition: all 0.2s;">
+                    <div onclick="InboxModule.filtrarPorTipo('produccion')" class="inbox-folder-btn" data-type="produccion" style="padding: 0.6rem 0.4rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                         <span>🚀</span> Producción
                     </div>
-                    <div onclick="InboxModule.filtrarPorTipo('solicitud')" class="inbox-folder-btn" data-type="solicitud" style="padding: 0.8rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; transition: all 0.2s;">
+                    <div onclick="InboxModule.filtrarPorTipo('solicitud')" class="inbox-folder-btn" data-type="solicitud" style="padding: 0.6rem 0.4rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                         <span>📋</span> Solicitudes
                     </div>
-                    <div onclick="InboxModule.filtrarPorTipo('importacion')" class="inbox-folder-btn" data-type="importacion" style="padding: 0.8rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; transition: all 0.2s;">
+                    <div onclick="InboxModule.filtrarPorTipo('importacion')" class="inbox-folder-btn" data-type="importacion" style="padding: 0.6rem 0.4rem; border-radius: 8px; cursor: pointer; color: #8B949E; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                         <span>📦</span> Importación
                     </div>
 
@@ -88,6 +89,11 @@ const InboxModule = {
 
     filtrarPorTipo: function(tipo) {
         this.tipoFiltro = tipo;
+        this.idSeleccionado = null; // Reset seleccionado al filtrar/cambiar carpeta
+        
+        const panel = document.getElementById('inboxPanel');
+        if (panel) panel.classList.remove('show-detail');
+
         document.querySelectorAll('.inbox-folder-btn').forEach(el => {
             const isActive = el.getAttribute('data-type') === tipo;
             el.style.background = isActive ? 'rgba(0,212,255,0.1)' : 'transparent';
@@ -133,13 +139,16 @@ const InboxModule = {
         const container = document.getElementById('messageListContainer');
         if (!container) return;
 
-        if (items.length === 0) {
+        // Filtrar los que el usuario ha "eliminado" (ocultado localmente)
+        const itemsVisibles = items.filter(item => !this.idsOcultos.includes(item.id));
+
+        if (itemsVisibles.length === 0) {
             container.innerHTML = '<div style="padding: 4rem; text-align: center; color: #444; font-size: 0.8rem;">Bandeja vacía</div>';
             return;
         }
 
         let html = '';
-        items.forEach(item => {
+        itemsVisibles.forEach(item => {
             const isUnread = !item.leido;
             const isSelected = item.id === this.idSeleccionado;
             const fecha = new Date(item.fecha).toLocaleDateString([], { day: '2-digit', month: 'short' });
@@ -152,7 +161,10 @@ const InboxModule = {
                      border-left: 4px solid ${isSelected ? '#00D4FF' : (isUnread ? '#00D4FF66' : 'transparent')};">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem; margin-left: 5px;">
                         <span style="font-size: 0.65rem; font-weight: 800; color: ${isSelected ? '#00D4FF' : '#8B949E'};">${icon} ${item.tipo.toUpperCase()}</span>
-                        <span style="font-size: 0.65rem; color: #444;">${fecha}</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.65rem; color: #444;">${fecha}</span>
+                            <button onclick="event.stopPropagation(); InboxModule.ocultarItem('${item.id}')" title="Eliminar" style="background: transparent; border: none; color: #444; cursor: pointer; padding: 2px; font-size: 0.8rem; transition: color 0.2s;" onmouseover="this.style.color='#FF4444'" onmouseout="this.style.color='#444'">🗑️</button>
+                        </div>
                     </div>
                     <div style="font-weight: ${isUnread || isSelected ? '800' : '500'}; color: ${isSelected ? '#FFFFFF' : (isUnread ? '#FFFFFF' : '#8B949E')}; font-size: 0.85rem; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         ${item.titulo}
@@ -178,6 +190,9 @@ const InboxModule = {
     verDetalle: async function(id) {
         const detailView = document.getElementById('inboxDetailView');
         if (!detailView) return;
+
+        const panel = document.getElementById('inboxPanel');
+        if (panel) panel.classList.add('show-detail');
 
         this.idSeleccionado = id;
         const item = this.itemsActuales.find(i => i.id === id);
@@ -238,19 +253,36 @@ const InboxModule = {
         `;
     },
 
-    eliminarItem: async function(id) {
-        if (confirm('¿Desea eliminar esta notificación?')) {
-            if (window.SupabaseClient && window.SupabaseClient.eliminarBandejaItem) {
-                await window.SupabaseClient.eliminarBandejaItem(id);
-                this.cargarBandeja();
-                document.getElementById('inboxDetailView').innerHTML = `
+    ocultarItem: function(id) {
+        if (!confirm('¿Seguro que deseas eliminar este mensaje?')) return;
+        
+        if (!this.idsOcultos.includes(id)) {
+            this.idsOcultos.push(id);
+            localStorage.setItem('alpha_inbox_hidden', JSON.stringify(this.idsOcultos));
+        }
+        
+        // Si el item ocultado era el seleccionado, limpiar detalle
+        if (this.idSeleccionado === id) {
+            this.idSeleccionado = null;
+            const detailView = document.getElementById('inboxDetailView');
+            const panel = document.getElementById('inboxPanel');
+            if (panel) panel.classList.remove('show-detail');
+            if (detailView) {
+                detailView.innerHTML = `
                     <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #30363D;">
-                        <span style="font-size: 5rem; opacity: 0.1;">✉️</span>
-                        <p style="font-weight: 700; margin-top: 1rem; color: #484F58;">Mensaje eliminado</p>
+                        <span style="font-size: 5rem; opacity: 0.3;">✉️</span>
+                        <p style="font-weight: 700; margin-top: 1rem; color: #484F58;">Seleccione un mensaje para leer</p>
                     </div>
                 `;
             }
         }
+        
+        this.renderizarLista(this.itemsActuales);
+    },
+
+    eliminarItem: function(id) {
+        // Redirigimos la funcionalidad de eliminar a ocultar para cumplir con "no borrar de DB"
+        this.ocultarItem(id);
     }
 };
 

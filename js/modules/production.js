@@ -140,6 +140,7 @@ const ProductionModule = {
                         </div>
                         <div style="text-align: right;">
                             <div style="color: #00D4FF; font-size: 0.75rem; font-weight: bold;">v${reg.version || 1}</div>
+                            ${reg.veces_repetida ? `<div style="color: #F59E0B; font-size: 0.6rem; font-weight: 800; margin-top: 2px;">🔄 REPETIDA ${reg.veces_repetida}v</div>` : ''}
                             <div class="time-badge" style="color: #8B949E; font-size: 0.6rem; font-weight: 500; background: rgba(139,148,158,0.1); padding: 2px 6px; border-radius: 4px; margin-top: 4px; display: inline-block;">
                                 🕒 ${haTerminado ? 'Terminado' : tiempoRelativo}
                             </div>
@@ -212,7 +213,7 @@ const ProductionModule = {
                 };
                 await window.SupabaseClient.guardarBandejaItem(notificacion);
 
-                Notifications.info(`🔄 Orden reiniciada (Intento #${nuevasRepeticiones + 1})`);
+                Notifications.info(`🔄 Orden reiniciada (Repetición #${nuevasRepeticiones})`);
                 this.cargarProduccion();
             }
         } catch (error) { 
@@ -307,11 +308,12 @@ const ProductionModule = {
                 console.log('📡 Enviando notificación a BANDEJA...');
                 const usuario = window.getUsuarioActual ? window.getUsuarioActual().username : 'Operador';
                 const poName = regActual ? regActual.po : 'PO Desconocida';
+                const repeticionStr = regActual && regActual.veces_repetida ? ` (REPETICIÓN #${regActual.veces_repetida})` : '';
                 
                 const notificacionInicio = {
                     tipo: 'produccion',
-                    titulo: `🚀 INICIO: PO ${poName}`,
-                    descripcion: `PRODUCCIÓN INICIADA\n\nOperador: ${usuario}\nPlotter: #${plotter}\nTemp: ${temp}°C | Hum: ${hum}%\nPerfil: ${perfil}`,
+                    titulo: `🚀 INICIO: PO ${poName}${repeticionStr}`,
+                    descripcion: `PRODUCCIÓN INICIADA${repeticionStr}\n\nOperador: ${usuario}\nPlotter: #${plotter}\nTemp: ${temp}°C | Hum: ${hum}%\nPerfil: ${perfil}${regActual?.veces_repetida ? `\n\n⚠️ Esta orden ha sido repetida ${regActual.veces_repetida} veces.` : ''}`,
                     po: poName,
                     fecha: new Date().toISOString(),
                     leido: false
@@ -349,11 +351,12 @@ const ProductionModule = {
                 console.log('🏁 Paso 2: Enviando aviso a bandeja...');
                 const user = window.getUsuarioActual ? window.getUsuarioActual().username : 'Operador';
                 const poName = reg ? reg.po : 'PO Desconocida';
+                const repeticionStr = reg && reg.veces_repetida ? ` (REPETICIÓN #${reg.veces_repetida})` : '';
                 
                 const notificacionFin = {
                     tipo: 'produccion',
-                    titulo: `🏁 FINALIZADA: PO ${poName}`,
-                    descripcion: `ORDEN COMPLETADA\n\nLa PO ${poName} ha sido finalizada por ${user}.\n\nRESUMEN:\n• Plotter: #${reg?.numero_plotter || '-'}\n• Temp: ${reg?.plotter_temp || '-'}°C\n• Hum: ${reg?.plotter_humedad || '-'}%`,
+                    titulo: `🏁 FINALIZADA: PO ${poName}${repeticionStr}`,
+                    descripcion: `ORDEN COMPLETADA${repeticionStr}\n\nLa PO ${poName} ha sido finalizada por ${user}.\n\nRESUMEN:\n• Plotter: #${reg?.numero_plotter || '-'}\n• Temp: ${reg?.plotter_temp || '-'}°C\n• Hum: ${reg?.plotter_humedad || '-'}${(reg?.veces_repetida) ? `\n• REPETICIONES: ${reg.veces_repetida}` : ''}`,
                     po: poName,
                     estilo: reg?.estilo || 'N/A',
                     fecha: new Date().toISOString(),
