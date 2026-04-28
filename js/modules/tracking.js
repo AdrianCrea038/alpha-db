@@ -6,11 +6,12 @@
 const TrackingModule = {
     poActual: null,
     datosPO: null,
-    procesos: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'],
+    procesos: ['COLORIMETRÍA', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'],
     metaPiezas: 500,
+    semanaSeleccionada: null,
     
     metasPorProceso: {
-        'DISEÑO': 500,
+        'COLORIMETRÍA': 500,
         'PLOTTER': 450,
         'SUBLIMADO': 400,
         'FLAT': 350,
@@ -19,7 +20,7 @@ const TrackingModule = {
     },
     
     avancePorProceso: {
-        'DISEÑO': 500,
+        'COLORIMETRÍA': 500,
         'PLOTTER': 380,
         'SUBLIMADO': 320,
         'FLAT': 280,
@@ -28,7 +29,7 @@ const TrackingModule = {
     },
     
     piezasPorProceso: {
-        'DISEÑO': 500,
+        'COLORIMETRÍA': 500,
         'PLOTTER': 450,
         'SUBLIMADO': 400,
         'FLAT': 350,
@@ -40,9 +41,16 @@ const TrackingModule = {
     
     init: function() {
         console.log('📍 Módulo de Tracking iniciado');
+        // Seleccionar automáticamente la última semana con datos
+        const opciones = this.getSemanasConDatos();
+        if (opciones.length > 0 && !this.semanaSeleccionada) {
+            this.semanaSeleccionada = opciones[0]; // La más reciente
+        } else if (!this.semanaSeleccionada) {
+            this.semanaSeleccionada = this.getSemanaActual();
+        }
+        
         this.cargarMetasGuardadas();
         this.renderizar();
-        this.configurarEventos();
     },
     
     cargarMetasGuardadas: function() {
@@ -70,24 +78,29 @@ const TrackingModule = {
     },
     
     renderizar: function() {
+        console.log('🖌️ Renderizando Tracking...');
         const container = document.querySelector('.container');
         if (!container) return;
         
-        let trackingPanel = document.getElementById('trackingPanel');
-        if (trackingPanel) trackingPanel.remove();
+        // Limpiar rastro de paneles viejos
+        const panels = document.querySelectorAll('.tracking-panel');
+        panels.forEach(p => p.remove());
         
         const panelHTML = `
             <div id="trackingPanel" class="tracking-panel">
                 <div id="indicadoresProceso" class="indicadores-proceso-section">
-                    <div class="indicadores-header">
-                        <h3>📊 INDICADORES DE CUMPLIMIENTO POR PROCESO</h3>
-                        <button id="editarMetasBtn" class="btn-editar-metas">✏️ EDITAR METAS</button>
+                    <div class="indicadores-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; background: #161B22; padding: 1rem; border-radius: 8px; border: 1px solid rgba(0,212,255,0.2);">
+                        <h3 style="margin: 0; font-size: 0.9rem; color: #00D4FF;">📊 CUMPLIMIENTO POR PROCESO</h3>
+                        
+                        <div class="filtro-semana-tracking" style="display: flex; align-items: center; gap: 0.8rem;">
+                            <label style="font-size: 0.7rem; color: #8B949E; font-weight: 800;">VER SEMANA:</label>
+                            <select id="selectSemanaTracking" class="select-bonito" style="padding: 0.3rem 0.8rem; font-size: 0.8rem; background: #0D1117; border-color: #00D4FF; color: #00D4FF; min-width: 120px;">
+                                ${this.obtenerOpcionesSemanas()}
+                            </select>
+                        </div>
                     </div>
                     <div id="indicadoresGrid" class="indicadores-grid">
                         ${this.renderizarIndicadores()}
-                    </div>
-                    <div class="indicadores-footer">
-                        <small>⚠️ Los valores de cumplimiento son configurables desde Administración → Metas de producción</small>
                     </div>
                 </div>
                 
@@ -95,19 +108,9 @@ const TrackingModule = {
                     <div class="buscador-input-group" style="display: flex; gap: 0.5rem; max-width: 600px; margin: 0 auto;">
                         <input type="text" id="trackingPoInput" placeholder="PO..." class="input-bonito" style="padding: 0.5rem 0.8rem; font-size: 0.85rem;">
                         <button id="trackingBuscarBtn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.8rem;">🔍 BUSCAR</button>
-                        <button id="trackingEscanearBtn" class="btn-secondary" style="background: #A855F7; padding: 0.5rem 1rem; font-size: 0.8rem;">📷 QR</button>
-                    </div>
-                    <div id="trackingScannerContainer" class="scanner-container" style="display: none;">
-                        <video id="trackingVideo" autoplay playsinline></video>
-                        <canvas id="trackingCanvas" style="display: none;"></canvas>
-                        <button id="trackingCerrarScanner" class="btn-secondary">✕ Cerrar escáner</button>
                     </div>
                 </div>
                 
-                <div id="trackingLoader" class="tracking-loader" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Cargando información de la PO...</p>
-                </div>
                 <div id="trackingResultados" style="display: none;"></div>
             </div>
         `;
@@ -120,61 +123,238 @@ const TrackingModule = {
         }
         
         this.agregarEstilos();
+        this.configurarEventos();
     },
     
     renderizarIndicadores: function() {
+        const semanaActual = String(this.getSemanaVisualizada());
+        
+        // 1. CARGA DE DATOS (Forzada para que el filtro funcione siempre)
+        let ordenesImportadas = (window.OrderImportModule && window.OrderImportModule.ordenes) || [];
+        if (ordenesImportadas.length === 0) {
+            const guardadas = localStorage.getItem('alpha_db_ordenes_importadas');
+            if (guardadas) ordenesImportadas = JSON.parse(guardadas);
+        }
+        
+        const registrosSemana = (window.AppState && window.AppState.registros) || [];
+        
+        // 2. LIMPIEZA DE NÚMEROS (Estricta)
+        const parseNum = (val) => {
+            if (!val) return 0;
+            if (typeof val === 'number') return val;
+            const limpio = String(val).replace(/[^0-9]/g, '');
+            return parseInt(limpio) || 0;
+        };
+
+        const getPiezas = (obj) => {
+            if (!obj) return 0;
+            // Prioridad a 'meka' como pediste
+            return parseNum(obj.meka) || parseNum(obj.make) || parseNum(obj.meta) || parseNum(obj.piezas) || parseNum(obj.qty) || parseNum(obj.pcz) || 0;
+        };
+
+        // 3. FILTRADO POR SEMANA (El filtro manda)
+        const actualLower = semanaActual.trim().toLowerCase();
+        
+        const planSemana = ordenesImportadas.filter(o => {
+            const s = String(o.semana || '').trim().toLowerCase();
+            return s === actualLower || s.includes(actualLower) || actualLower.includes(s);
+        });
+
+        const registrosEnSemana = registrosSemana.filter(r => {
+            const s = String(r.semana || '').trim().toLowerCase();
+            return s === actualLower || s.includes(actualLower) || actualLower.includes(s);
+        });
+
+        // 4. META UNIFICADA (Solo del Excel, sin inventos)
+        let metaGlobal = planSemana.reduce((sum, o) => sum + getPiezas(o), 0);
+
+        if (metaGlobal === 0 && registrosEnSemana.length === 0) {
+            return `
+                <div class="no-data-msg" style="text-align: center; padding: 2.5rem; color: #8B949E; border: 1px dashed #30363D; border-radius: 12px;">
+                    <p style="margin: 0; font-weight: 800; color: #F85149;">⚠️ SIN PLAN EN EXCEL (SEMANA ${semanaActual})</p>
+                </div>
+            `;
+        }
+
         let html = '';
         
-        for (const proceso of this.procesos) {
-            const meta = this.metasPorProceso[proceso] || 0;
-            const avance = this.avancePorProceso[proceso] || 0;
-            const porcentaje = meta > 0 ? Math.min(100, Math.round((avance / meta) * 100)) : 0;
+        for (let i = 0; i < this.procesos.length; i++) {
+            const proceso = this.procesos[i];
             
-            let colorBarra = '#FF4444';
-            if (porcentaje >= 80) colorBarra = '#00FF88';
-            else if (porcentaje >= 50) colorBarra = '#F59E0B';
+            // Sumar piezas solo de registros reales
+            const piezasRealizadas = registrosEnSemana.reduce((sum, r) => {
+                let procesoReg = r.proceso === 'DISEÑO' ? 'COLORIMETRÍA' : (r.proceso || 'COLORIMETRÍA');
+                const idxActual = this.procesos.indexOf(procesoReg);
+                
+                if (idxActual >= i) {
+                    let p = getPiezas(r);
+                    // BÚSQUEDA INTELIGENTE: Si el registro no tiene piezas, buscamos en el Excel original
+                    if (p === 0) {
+                        const ord = planSemana.find(o => o.po_item === r.po || o.po === r.po);
+                        p = ord ? getPiezas(ord) : 0; // Solo lo que diga el Excel, nada de inventos
+                    }
+                    return sum + p;
+                }
+                return sum;
+            }, 0);
+
+            const porcentaje = metaGlobal > 0 ? Math.min(100, Math.round((piezasRealizadas / metaGlobal) * 100)) : 0;
+            
+            let color = '#FF4444'; // Rojo (<50%)
+            if (porcentaje >= 85) color = '#00FF88'; // Verde (>=85%)
+            else if (porcentaje >= 50) color = '#F59E0B'; // Naranja (>=50%)
             
             html += `
-                <div class="indicador-card" data-proceso="${proceso}">
-                    <div class="indicador-header">
-                        <span class="indicador-icono">${this.getIconoProceso(proceso)}</span>
-                        <span class="indicador-nombre">${proceso}</span>
+                <div class="indicador-card" data-proceso="${proceso}" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 220px; padding: 1.25rem;">
+                    <!-- Nivel 1: Encabezado y Meta -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">${this.getIconoProceso(proceso)}</span>
+                            <span style="font-size: 0.85rem; font-weight: 900; color: #00D4FF; letter-spacing: 0.5px;">${proceso}</span>
+                        </div>
+                        <div style="text-align: right; background: rgba(255,255,255,0.03); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 0.6rem; color: #8B949E; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">META</div>
+                            <div style="font-size: 1rem; color: #FFFFFF; font-weight: 900;">${metaGlobal.toLocaleString()}</div>
+                        </div>
                     </div>
-                    <div class="indicador-meta">
-                        <span>🎯 Meta: ${meta} piezas</span>
-                        <span>✅ Avance: ${avance} piezas</span>
+
+                    <!-- Nivel 2: Progreso Principal -->
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                        <div style="font-size: 3rem; font-weight: 950; color: ${color}; line-height: 1; letter-spacing: -1.5px; text-shadow: 0 0 20px ${color}22;">
+                            ${piezasRealizadas.toLocaleString()}
+                        </div>
+                        <div style="font-size: 0.65rem; color: #8B949E; font-weight: 700; text-transform: uppercase; margin-top: 8px; letter-spacing: 1px;">Piezas Realizadas</div>
                     </div>
-                    <div class="progreso-barra-indicador">
-                        <div class="progreso-fill-indicador" style="width: ${porcentaje}%; background: ${colorBarra};"></div>
-                    </div>
-                    <div class="indicador-porcentaje">
-                        <span class="porcentaje-valor">${porcentaje}%</span>
-                        <span class="porcentaje-estado">${this.getEstadoCumplimiento(porcentaje)}</span>
-                    </div>
-                    <div class="indicador-semana">
-                        <span>📅 Semana actual: ${this.getSemanaActual()}</span>
+
+                    <!-- Nivel 3: Barra y Porcentaje -->
+                    <div style="margin-top: 1rem;">
+                        <div style="background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.03);">
+                            <div style="width: ${porcentaje}%; background: ${color}; height: 100%; border-radius: 3px; transition: width 1s ease-out; box-shadow: 0 0 12px ${color}55;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: baseline; gap: 4px;">
+                                <span style="color: ${color}; font-size: 1.6rem; font-weight: 950;">${porcentaje}</span>
+                                <span style="color: ${color}; font-size: 0.8rem; font-weight: 800;">%</span>
+                            </div>
+                            <span style="color: ${color}; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; padding: 4px 10px; background: ${color}15; border-radius: 4px; border: 1px solid ${color}25; letter-spacing: 0.5px;">${this.getEstadoCumplimiento(porcentaje)}</span>
+                        </div>
                     </div>
                 </div>
             `;
         }
-        
         return html;
     },
     
     getEstadoCumplimiento: function(porcentaje) {
-        if (porcentaje >= 80) return '🎉 Excelente';
-        if (porcentaje >= 50) return '⚠️ En progreso';
-        return '🔴 Por debajo';
+        if (porcentaje >= 85) return '🚀 Excelente';
+        if (porcentaje >= 50) return '🚧 En progreso';
+        return '📉 Por debajo';
     },
     
     getSemanaActual: function() {
         if (window.Utils) return Utils.obtenerSemana(new Date());
         return '?';
     },
+
+    getSemanaVisualizada: function() {
+        return this.semanaSeleccionada || this.getSemanaActual();
+    },
+
+    getSemanasConDatos: function() {
+        const semanas = new Set();
+        const ordenes = (window.OrderImportModule && window.OrderImportModule.ordenes) || [];
+        ordenes.forEach(o => { if(o.semana) semanas.add(String(o.semana)); });
+        const registros = (window.AppState && window.AppState.registros) || [];
+        registros.forEach(r => { if(r.semana) semanas.add(String(r.semana)); });
+        return Array.from(semanas).sort((a, b) => parseInt(b) - parseInt(a));
+    },
+
+    obtenerOpcionesSemanas: function() {
+        const sorted = this.getSemanasConDatos();
+        const actual = String(this.getSemanaActual());
+        
+        // Si no hay ninguna semana con datos, mostrar al menos la actual
+        if (sorted.length === 0) {
+            sorted.push(actual);
+        }
+        
+        const sel = String(this.getSemanaVisualizada());
+        
+        return sorted.map(s => `
+            <option value="${s}" ${s === sel ? 'selected' : ''}>
+                Semana ${s} ${s === actual ? '(Actual)' : ''}
+            </option>
+        `).join('');
+    },
     
     getIconoProceso: function(proceso) {
-        const iconos = { 'DISEÑO': '🎨', 'PLOTTER': '🖨️', 'SUBLIMADO': '🔥', 'FLAT': '📏', 'LASER': '⚡', 'BORDADO': '🧵' };
+        const iconos = { 'COLORIMETRÍA': '🎨', 'PLOTTER': '🖨️', 'SUBLIMADO': '🔥', 'FLAT': '📏', 'LASER': '⚡', 'BORDADO': '🧵' };
         return iconos[proceso] || '⚙️';
+    },
+
+    renderizarPlanSemanal: function() {
+        const semanaActual = this.getSemanaVisualizada();
+        const ordenesImportadas = (window.OrderImportModule && window.OrderImportModule.ordenes) || [];
+        
+        const planSemana = ordenesImportadas.filter(o => String(o.semana) === String(semanaActual));
+        
+        if (planSemana.length === 0) {
+            return ''; // No mostrar el banner si no hay plan (el mensaje estará en indicadores)
+        }
+        
+        const totalPiezasPlan = planSemana.reduce((sum, o) => sum + (o.make || 0), 0);
+        
+        // Ver cuántas de estas POs ya tienen registro
+        const registrosSemana = (window.AppState && window.AppState.registros) || [];
+        const registrosEnPlan = registrosSemana.filter(r => String(r.semana) === String(semanaActual));
+        
+        const poConRegistro = new Set(registrosEnPlan.map(r => r.po));
+        const completadasEnPlan = planSemana.filter(o => poConRegistro.has(o.po_item));
+        
+        const porcentajePlan = totalPiezasPlan > 0 ? Math.round((completadasEnPlan.length / planSemana.length) * 100) : 0;
+
+        return `
+            <div class="plan-card" style="background: linear-gradient(135deg, #161B22 0%, #0D1117 100%); border: 1px solid rgba(0,212,255,0.3); border-radius: 12px; padding: 1.5rem; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -20px; right: -20px; font-size: 5rem; opacity: 0.05; color: #00D4FF;">📅</div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+                    <div>
+                        <h3 style="margin: 0; color: #00D4FF; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            📋 PLAN SEMANAL (SEM ${semanaActual})
+                        </h3>
+                        <p style="margin: 5px 0 0; color: #8B949E; font-size: 0.8rem;">Basado en órdenes importadas de Excel</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="display: block; font-size: 1.5rem; font-weight: 900; color: #00D4FF;">${porcentajePlan}%</span>
+                        <span style="font-size: 0.65rem; color: #8B949E; text-transform: uppercase;">Avance de Carga</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem;">
+                    <div style="background: rgba(0,212,255,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(0,212,255,0.1); text-align: center;">
+                        <div style="font-size: 0.7rem; color: #8B949E; margin-bottom: 0.3rem;">📦 ÓRDENES EN PLAN</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: white;">${planSemana.length}</div>
+                    </div>
+                    <div style="background: rgba(0,255,136,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(0,255,136,0.1); text-align: center;">
+                        <div style="font-size: 0.7rem; color: #8B949E; margin-bottom: 0.3rem;">🎯 META SEMANAL</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #00FF88;">${totalPiezasPlan.toLocaleString()} <span style="font-size: 0.7rem;">piezas</span></div>
+                    </div>
+                    <div style="background: rgba(245,158,11,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(245,158,11,0.1); text-align: center;">
+                        <div style="font-size: 0.7rem; color: #8B949E; margin-bottom: 0.3rem;">⏳ POR REGISTRAR</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #F59E0B;">${planSemana.length - completadasEnPlan.length}</div>
+                    </div>
+                </div>
+
+                <div class="progreso-barra-indicador" style="margin-top: 1.5rem; height: 6px; background: #21262D;">
+                    <div class="progreso-fill-indicador" style="width: ${porcentajePlan}%; background: linear-gradient(90deg, #00D4FF, #00FF88); height: 100%;"></div>
+                </div>
+                
+                <div style="margin-top: 0.8rem; text-align: center;">
+                    <button onclick="Sidebar.mostrarOrdenes()" style="background: transparent; border: 1px solid #00D4FF; color: #00D4FF; padding: 0.3rem 1rem; border-radius: 20px; font-size: 0.7rem; cursor: pointer; transition: all 0.3s;">
+                        🔍 VER DETALLE DEL PLAN
+                    </button>
+                </div>
+            </div>
+        `;
     },
     
     agregarEstilos: function() {
@@ -555,6 +735,12 @@ const TrackingModule = {
         document.getElementById('editarMetasBtn')?.addEventListener('click', () => {
             window.location.href = 'admin.html';
         });
+
+        document.getElementById('selectSemanaTracking')?.addEventListener('change', (e) => {
+            this.semanaSeleccionada = e.target.value;
+            console.log('📅 Cambiando vista de Tracking a semana:', this.semanaSeleccionada);
+            this.renderizar();
+        });
     },
     
     buscarPO: function() {
@@ -569,7 +755,14 @@ const TrackingModule = {
         this.mostrarLoader(true);
         
         setTimeout(() => {
-            const registroEncontrado = AppState.registros.find(r => r.po === po);
+            const registroEncontrado = AppState.registros.find(r => {
+                if (!r.po) return false;
+                const poVal = r.po.toUpperCase().trim();
+                const inputVal = po.toUpperCase().trim();
+                return poVal === inputVal || 
+                       poVal === 'PO-' + inputVal || 
+                       'PO-' + poVal === inputVal;
+            });
             
             if (registroEncontrado) {
                 this.datosPO = registroEncontrado;
@@ -712,7 +905,7 @@ const TrackingModule = {
         const resultadosDiv = document.getElementById('trackingResultados');
         if (!resultadosDiv) return;
         
-        const procesoActual = this.datosPO.proceso;
+        const procesoActual = this.datosPO.proceso === 'DISEÑO' ? 'COLORIMETRÍA' : (this.datosPO.proceso || 'COLORIMETRÍA');
         const indiceActual = this.procesos.indexOf(procesoActual);
         const completados = this.procesos.slice(0, indiceActual);
         const pendientes = this.procesos.slice(indiceActual + 1);
@@ -776,8 +969,9 @@ const TrackingModule = {
             `;
         }
         
+        const metaPO = this.datosPO.meta || this.metaPiezas;
         const piezasCompletadas = completados.reduce((sum, p) => sum + (this.piezasPorProceso[p] || 0), 0) + ((this.piezasPorProceso[procesoActual] || 0) * 0.6);
-        const porcentajeCumplimiento = this.metaPiezas > 0 ? Math.min(100, Math.round((piezasCompletadas / this.metaPiezas) * 100)) : 0;
+        const porcentajeCumplimiento = metaPO > 0 ? Math.min(100, Math.round((piezasCompletadas / metaPO) * 100)) : 0;
         
         const html = `
             <div class="tracking-dashboard">
@@ -790,7 +984,7 @@ const TrackingModule = {
                     <div class="dashboard-card"><h4>ESTILO</h4><div class="valor">${this.datosPO.estilo || '-'}</div></div>
                     <div class="dashboard-card"><h4>TELAS</h4><div class="valor" style="font-size:0.9rem;">${this.datosPO.telas ? this.datosPO.telas.length : 0}</div><div class="unidad">telas</div></div>
                     <div class="dashboard-card"><h4>VERSIÓN</h4><div class="valor">v${this.datosPO.version || 1}</div></div>
-                    <div class="dashboard-card"><h4>META</h4><div class="valor">${this.metaPiezas}</div><div class="unidad">piezas</div></div>
+                    <div class="dashboard-card"><h4>META</h4><div class="valor">${metaPO}</div><div class="unidad">piezas (Auto)</div></div>
                     <div class="dashboard-card"><h4>COMPLETADAS</h4><div class="valor">${Math.round(piezasCompletadas)}</div><div class="unidad">piezas (${porcentajeCumplimiento}%)</div></div>
                 </div>
                 

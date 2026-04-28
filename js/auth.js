@@ -231,7 +231,7 @@ function getProcesosPermitidos() {
     const usuario = getUsuarioActual();
     if (!usuario) return [];
     if (usuario.rol === 'admin' || usuario.rol === 'usuario_tracking') {
-        return ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'];
+        return ['COLORIMETRÍA', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'];
     }
     if (usuario.rol === 'operador') {
         return usuario.procesosAsignados || [];

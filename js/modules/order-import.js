@@ -61,8 +61,8 @@ const OrderImportModule = {
     guardarEnSupabase: async function(orden) {
         if (!window.SupabaseClient || !window.SupabaseClient.client) return false;
         try {
-            // Clonar para no enviar la semana a Supabase (evitar error de esquema)
-            const { semana, ...ordenSinSemana } = orden;
+            // Clonar para no enviar campos extras a Supabase (evitar error de esquema)
+            const { semana, comentario, ...ordenSinSemana } = orden;
             const { error } = await window.SupabaseClient.client
                 .from('ordenes_importadas')
                 .upsert(ordenSinSemana);
@@ -112,6 +112,10 @@ const OrderImportModule = {
                         <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📁</span>
                         <p style="margin: 0; font-size: 0.85rem; color: #8B949E;">Arrastre Excel aquí o haga clic para seleccionar</p>
                         <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none;">
+                    </div>
+                    <div class="manual-week-group" style="background: rgba(0,212,255,0.05); padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(0,212,255,0.2); min-width: 140px;">
+                        <label style="display: block; color: #00D4FF; font-size: 0.7rem; font-weight: 800; margin-bottom: 0.4rem; text-transform: uppercase;">📅 Semana Manual</label>
+                        <input type="number" id="inputSemanaManual" value="${window.Utils ? Utils.obtenerSemana(new Date()) : ''}" class="input-bonito" style="width: 100%; text-align: center; font-size: 1.2rem; font-weight: 900; color: #00D4FF; background: #0D1117;" min="1" max="53">
                     </div>
                     <button id="btnLimpiarSinColor" class="btn-limpiar" style="background: rgba(255,68,68,0.1); border: 1px solid #FF4444; color: #FF4444; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 800; cursor: pointer;">🧹 LIMPIAR PENDIENTES</button>
                 </div>
@@ -164,7 +168,10 @@ const OrderImportModule = {
             html += `
                 <tr data-id="${orden.id}">
                     <td style="color: #00D4FF; font-weight: bold;">${orden.semana || '-'}</td>
-                    <td><strong>${this.escapeHtml(orden.po_item)}</strong></td>
+                    <td>
+                        <strong>${this.escapeHtml(orden.po_item)}</strong>
+                        ${orden.comentario ? `<div style="font-size: 0.65rem; color: #F59E0B; margin-top: 2px;">⚠️ ${this.escapeHtml(orden.comentario)}</div>` : ''}
+                    </td>
                     <td><span class="nk-badge">${this.escapeHtml(orden.style)}</span></td>
                     <td>${orden.make} piezas</td>
                     <td>${fecha}</td>
@@ -287,7 +294,11 @@ const OrderImportModule = {
                     const po = btn.getAttribute('data-po');
                     const nk = btn.getAttribute('data-nk');
                     const make = btn.getAttribute('data-make');
-                    this.mostrarModalColor(id, po, nk, make);
+                    
+                    const orden = this.ordenes.find(o => o.id === id);
+                    const comentario = orden ? orden.comentario : '';
+                    
+                    this.mostrarModalColor(id, po, nk, make, comentario);
                 });
             });
         }
@@ -301,7 +312,10 @@ const OrderImportModule = {
             html += `
                 <tr data-id="${orden.id}">
                     <td style="color: #00D4FF; font-weight: bold;">${orden.semana || '-'}</td>
-                    <td><strong>${this.escapeHtml(orden.po_item)}</strong></td>
+                    <td>
+                        <strong>${this.escapeHtml(orden.po_item)}</strong>
+                        ${orden.comentario ? `<div style="font-size: 0.65rem; color: #F59E0B; margin-top: 2px;">⚠️ ${this.escapeHtml(orden.comentario)}</div>` : ''}
+                    </td>
                     <td><span class="nk-badge">${this.escapeHtml(orden.style)}</span></td>
                     <td>${orden.make} piezas</td>
                     <td>${fecha}</td>
@@ -384,7 +398,8 @@ const OrderImportModule = {
                 let encontroPo = false;
                 let encontroStyle = false;
                 let encontroMake = false;
-                let tempColPo = -1, tempColStyle = -1, tempColMake = -1;
+                let encontroSemana = false;
+                let tempColPo = -1, tempColStyle = -1, tempColMake = -1, tempColSemana = -1;
                 
                 for (let j = 0; j < fila.length; j++) {
                     const celda = String(fila[j] || '').toLowerCase();
@@ -401,6 +416,10 @@ const OrderImportModule = {
                         encontroMake = true;
                         tempColMake = j;
                     }
+                    if (celda.includes('semana') || celda.includes('week') || celda === 'sem' || celda === 'wk') {
+                        encontroSemana = true;
+                        tempColSemana = j;
+                    }
                 }
                 
                 if (encontroPo && encontroStyle && encontroMake) {
@@ -408,7 +427,8 @@ const OrderImportModule = {
                     colPo = tempColPo;
                     colStyle = tempColStyle;
                     colMake = tempColMake;
-                    console.log(`✅ Encabezados encontrados en fila ${i}:`, { colPo, colStyle, colMake });
+                    colSemana = tempColSemana;
+                    console.log(`✅ Encabezados encontrados en fila ${i}:`, { colPo, colStyle, colMake, colSemana });
                     break;
                 }
             }
@@ -434,14 +454,28 @@ const OrderImportModule = {
                 if (fila[colStyle]) style = String(fila[colStyle]).trim();
                 if (fila[colMake]) make = parseInt(fila[colMake]) || 0;
                 
+                let semanaExtraida = null;
+                if (colSemana !== -1 && fila[colSemana]) {
+                    semanaExtraida = parseInt(fila[colSemana]);
+                }
+                
                 if (po_item && style && make > 0 && !ordenesExistentes.has(po_item)) {
+                    const semanaManual = parseInt(document.getElementById('inputSemanaManual')?.value);
+                    const semanaActual = window.Utils ? Utils.obtenerSemana(new Date()) : 0;
+                    let comentario = '';
+                    
+                    if (semanaManual && semanaManual !== semanaActual) {
+                        comentario = `Adelanto de trabajo (Semana manual: ${semanaManual})`;
+                    }
+
                     nuevasOrdenes.push({
                         id: 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
                         po_item: po_item,
                         style: style,
                         make: make,
                         importado_el: new Date().toISOString(),
-                        semana: window.Utils ? Utils.obtenerSemana(new Date()) : null,
+                        semana: semanaExtraida || semanaManual || (window.Utils ? Utils.obtenerSemana(new Date()) : null),
+                        comentario: comentario,
                         usado: false
                     });
                     ordenesExistentes.add(po_item);
@@ -462,11 +496,18 @@ const OrderImportModule = {
             // ENVIAR NOTIFICACIÓN A BANDEJA
             if (window.SupabaseClient && window.SupabaseClient.guardarBandejaItem) {
                 const usuario = window.getUsuarioActual ? window.getUsuarioActual().username : 'Operador';
+                const semanaManual = parseInt(document.getElementById('inputSemanaManual')?.value);
+                const semanaActual = window.Utils ? Utils.obtenerSemana(new Date()) : 0;
+                let extraMsg = '';
+                if (semanaManual && semanaManual !== semanaActual) {
+                    extraMsg = `\n⚠️ ADELANTO DE TRABAJO: Importado para Semana ${semanaManual} (Semana actual: ${semanaActual})`;
+                }
+
                 const itemBandeja = {
                     id: 'IMP-' + Date.now().toString(36).toUpperCase(),
                     tipo: 'importacion',
                     titulo: `📦 Nueva Carga de Órdenes: ${nuevasOrdenes.length} items`,
-                    descripcion: `El usuario ${usuario} ha cargado un nuevo archivo Excel con ${nuevasOrdenes.length} órdenes para procesar.`,
+                    descripcion: `El usuario ${usuario} ha cargado un nuevo archivo Excel con ${nuevasOrdenes.length} órdenes para procesar.${extraMsg}`,
                     fecha: new Date().toISOString(),
                     leido: false
                 };
@@ -480,7 +521,7 @@ const OrderImportModule = {
         reader.readAsArrayBuffer(file);
     },
     
-    mostrarModalColor: function(ordenId, po, nk, make) {
+    mostrarModalColor: function(ordenId, po, nk, make, comentario = '') {
         if (!window.puedeEditar || !window.puedeEditar()) {
             this.mostrarMensaje('❌ No tiene permisos', 'error');
             return;
@@ -509,7 +550,7 @@ const OrderImportModule = {
                             <div class="form-group">
                                 <label>PROCESO:</label>
                                 <select id="modalProceso" class="select-bonito">
-                                    <option value="DISEÑO">🎨 DISEÑO</option>
+                                    <option value="COLORIMETRÍA">🎨 COLORIMETRÍA</option>
                                     <option value="PLOTTER">🖨️ PLOTTER</option>
                                     <option value="SUBLIMADO">🔥 SUBLIMADO</option>
                                     <option value="FLAT">📏 FLAT</option>
@@ -549,7 +590,7 @@ const OrderImportModule = {
         this.agregarGrupoColorModal();
         
         document.getElementById('modalAgregarColorBtn').addEventListener('click', () => this.agregarGrupoColorModal());
-        document.getElementById('modalGuardarBtn').addEventListener('click', () => this.guardarRegistroDesdeModal(ordenId, po, nk, make));
+        document.getElementById('modalGuardarBtn').addEventListener('click', () => this.guardarRegistroDesdeModal(ordenId, po, nk, make, comentario));
         document.getElementById('modalCancelarBtn').addEventListener('click', () => this.cerrarModalColor());
         
         document.addEventListener('keydown', this.modalEscHandler = (e) => {
@@ -615,8 +656,8 @@ const OrderImportModule = {
         return colores;
     },
     
-    guardarRegistroDesdeModal: async function(ordenId, po, nk, make) {
-        const proceso = document.getElementById('modalProceso')?.value || 'DISEÑO';
+    guardarRegistroDesdeModal: async function(ordenId, po, nk, make, comentario = '') {
+        const proceso = document.getElementById('modalProceso')?.value || 'COLORIMETRÍA';
         const fecha = document.getElementById('modalFecha')?.value || new Date().toISOString().split('T')[0];
         const estilo = document.getElementById('modalEstilo')?.value || '';
         const colores = this.obtenerColoresModal();
@@ -637,6 +678,7 @@ const OrderImportModule = {
             semana: semana,
             fecha: fecha,
             estilo: estilo || 'SIN ESTILO',
+            meta: make,
             nks: [{ nk: nk, colores: colores }],
             numero_plotter: 0,
             plotter_temp: 0,
@@ -650,7 +692,7 @@ const OrderImportModule = {
             tiempo_flat: 0,
             adhesivo: '',
             version: 1,
-            observacion: `Importado desde Excel - Meta: ${make} piezas`,
+            observacion: comentario ? `${comentario} - Meta: ${make} piezas` : `Importado desde Excel - Meta: ${make} piezas`,
             creado: new Date().toISOString(),
             actualizado: new Date().toISOString()
         };
@@ -728,7 +770,12 @@ const OrderImportModule = {
                 const po = btn.getAttribute('data-po');
                 const nk = btn.getAttribute('data-nk');
                 const make = btn.getAttribute('data-make');
-                this.mostrarModalColor(id, po, nk, make);
+                
+                // Buscar comentario en la orden local
+                const orden = this.ordenes.find(o => o.id === id);
+                const comentario = orden ? orden.comentario : '';
+                
+                this.mostrarModalColor(id, po, nk, make, comentario);
             });
         });
         

@@ -5,7 +5,7 @@
 
 const AdminModule = {
     usuarios: [],
-    procesosDisponibles: ['DISEÑO', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'],
+    procesosDisponibles: ['COLORIMETRÍA', 'PLOTTER', 'SUBLIMADO', 'FLAT', 'LASER', 'BORDADO'],
     metasProduccion: {},
     avanceProduccion: {},
     
@@ -162,12 +162,12 @@ const AdminModule = {
         }
         
         const metasDefault = {
-            'DISEÑO': 500, 'PLOTTER': 450, 'SUBLIMADO': 400,
+            'COLORIMETRÍA': 500, 'PLOTTER': 450, 'SUBLIMADO': 400,
             'FLAT': 350, 'LASER': 300, 'BORDADO': 250
         };
         
         const avanceDefault = {
-            'DISEÑO': 500, 'PLOTTER': 380, 'SUBLIMADO': 320,
+            'COLORIMETRÍA': 500, 'PLOTTER': 380, 'SUBLIMADO': 320,
             'FLAT': 280, 'LASER': 220, 'BORDADO': 180
         };
         
@@ -253,7 +253,7 @@ const AdminModule = {
     },
     
     getIconoProceso: function(proceso) {
-        const iconos = { 'DISEÑO': '🎨', 'PLOTTER': '🖨️', 'SUBLIMADO': '🔥', 'FLAT': '📏', 'LASER': '⚡', 'BORDADO': '🧵' };
+        const iconos = { 'COLORIMETRÍA': '🎨', 'PLOTTER': '🖨️', 'SUBLIMADO': '🔥', 'FLAT': '📏', 'LASER': '⚡', 'BORDADO': '🧵' };
         return iconos[proceso] || '⚙️';
     },
     

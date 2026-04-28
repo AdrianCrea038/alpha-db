@@ -382,7 +382,7 @@ function generarDatosEjemplo() {
     
     const ejemplos = [];
     const pos = ['PO-2401-001', 'PO-2401-002', 'PO-2402-015'];
-    const procesos = ['DISEÑO', 'PLOTTER', 'SUBLIMADO'];
+    const procesos = ['COLORIMETRÍA', 'PLOTTER', 'SUBLIMADO'];
     const estilos = ['LIBRE', 'MARIPOSA', 'PECHO'];
     const ahora = new Date().toISOString();
     
@@ -614,6 +614,7 @@ window.mandarAProduccion = async (event, id) => {
                 .from('registros')
                 .update({ 
                     en_produccion: true, 
+                    proceso: 'PLOTTER',
                     actualizado: new Date().toISOString()
                 })
                 .eq('id', id);
@@ -625,6 +626,7 @@ window.mandarAProduccion = async (event, id) => {
                 const reg = AppState.registros.find(r => r.id === id);
                 if (reg) {
                     reg.en_produccion = true;
+                    reg.proceso = 'PLOTTER';
                     reg.actualizado = new Date().toISOString();
                 }
                 if (window.onStateChange) window.onStateChange();

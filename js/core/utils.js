@@ -55,7 +55,7 @@ const Utils = {
     
     getProcesoColor: function(proceso) {
         const colores = {
-            'DISEÑO': '#A855F7',
+            'COLORIMETRÍA': '#A855F7',
             'PLOTTER': '#00D4FF',
             'SUBLIMADO': '#00FF88',
             'FLAT': '#F59E0B',

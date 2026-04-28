@@ -113,7 +113,8 @@ const AppState = {
         if (this.currentSearch) {
             const termino = this.currentSearch.toLowerCase().trim();
             filtrados = filtrados.filter(reg => {
-                let texto = `${reg.po} ${reg.proceso} ${reg.estilo}`;
+                let procesoDisplay = reg.proceso === 'DISEÑO' ? 'COLORIMETRÍA' : reg.proceso;
+                let texto = `${reg.po} ${reg.proceso} ${procesoDisplay} ${reg.estilo}`;
                 if (reg.nks && reg.nks.length > 0) {
                     reg.nks.forEach(nk => {
                         texto += ` ${nk.nk}`;

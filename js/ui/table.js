@@ -37,8 +37,9 @@ const TableUI = {
                 
                 const esReemplazo = reg.es_reemplazo || (reg.version > 1);
                 const reemplazoIcon = esReemplazo ? '🔄 Sí' : '⚙️ No';
+                const procesoDisplay = reg.proceso === 'DISEÑO' ? 'COLORIMETRÍA' : (reg.proceso || '-');
                 const procesoBadge = reg.proceso ? 
-                    `<span style="background: ${window.Utils ? Utils.getProcesoColor(reg.proceso) : '#444'}; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${reg.proceso}</span>` : '-';
+                    `<span style="background: ${window.Utils ? Utils.getProcesoColor(reg.proceso) : '#444'}; color:white; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.7rem;">${procesoDisplay}</span>` : '-';
                 
                 let nksHtml = '';
                 if (reg.nks && Array.isArray(reg.nks)) {
@@ -90,10 +91,21 @@ const TableUI = {
                         }
                     </td>
                     <td>
-                        ${reg.en_produccion ? 
-                            `<span style="background:rgba(0,255,136,0.1); color:#00FF88; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.65rem; border:1px solid rgba(0,255,136,0.3); font-weight:700;">🏭 EN PRODUCCIÓN</span>` : 
-                            `<span style="background:rgba(245,158,11,0.1); color:#F59E0B; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.65rem; border:1px solid rgba(245,158,11,0.3); font-weight:700;">⏳ PENDIENTE</span>`
-                        }
+                        ${(() => {
+                            const proc = reg.proceso || 'COLORIMETRÍA';
+                            const esPendiente = proc === 'COLORIMETRÍA' || proc === 'DISEÑO';
+                            
+                            if (esPendiente) {
+                                if (reg.en_produccion) {
+                                    return `<span style="background:rgba(0,255,136,0.1); color:#00FF88; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.65rem; border:1px solid rgba(0,255,136,0.3); font-weight:700;">🏭 EN PRODUCCIÓN</span>`;
+                                }
+                                return `<span style="background:rgba(245,158,11,0.1); color:#F59E0B; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.65rem; border:1px solid rgba(245,158,11,0.3); font-weight:700;">⏳ PENDIENTE</span>`;
+                            } else {
+                                const color = window.Utils ? Utils.getProcesoColor(proc) : '#00D4FF';
+                                const icono = window.AdminModule ? AdminModule.getIconoProceso(proc) : '⚙️';
+                                return `<span style="background:${color}22; color:${color}; padding:0.2rem 0.5rem; border-radius:1rem; font-size:0.65rem; border:1px solid ${color}44; font-weight:700;">${icono} ${proc}</span>`;
+                            }
+                        })()}
                     </td>
                     <td class="action-cell">
                         <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
